@@ -1,9 +1,13 @@
 #!/usr/bin/env node
 
+import { createRequire } from 'node:module';
 import { Command } from 'commander';
 import chalk from 'chalk';
 
 import { loginCommand } from './commands/login.js';
+
+const require = createRequire(import.meta.url);
+const { version } = require('../package.json') as { version: string };
 import { logoutCommand } from './commands/logout.js';
 import { accountCommand } from './commands/account.js';
 import { assetsCommand } from './commands/assets.js';
@@ -22,7 +26,7 @@ const program = new Command();
 
 program
   .name('minara')
-  .version('0.1.0')
+  .version(version)
   .description(
     chalk.bold('Minara CLI') +
     ' — Your AI-powered digital finance assistant in the terminal.\n\n' +
