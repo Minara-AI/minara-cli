@@ -1,0 +1,118 @@
+import { Command } from 'commander';
+import { select } from '@inquirer/prompts';
+import chalk from 'chalk';
+import Table from 'cli-table3';
+import { getCurrentUser } from '../api/auth.js';
+import { getAccount } from '../api/crosschain.js';
+import { requireAuth } from '../config.js';
+import { error, info, spinner } from '../utils.js';
+
+/**
+ * Map wallet type keys from /auth/me → human-readable chain info.
+ * Minara custodial wallets follow naming like:
+ *   spot-evm, abstraction-solana, spot-solana, etc.
+ */
+function describeWalletType(key: string): { chains: string[]; network: string } {
+  const lower = key.toLowerCase();
+
+  if (lower.includes('evm') || lower === 'spot-evm' || lower === 'abstraction-evm') {
+    return {
+      network: 'EVM',
+      chains: ['Ethereum', 'Base', 'Arbitrum', 'Optimism', 'Polygon', 'Avalanche', 'BSC', 'Berachain', 'Blast'],
+    };
+  }
+  if (lower.includes('solana')) {
+    return {
+      network: 'Solana',
+      chains: ['Solana'],
+    };
+  }
+  // Fallback
+  return { network: key, chains: [key] };
+}
+
+export const depositCommand = new Command('deposit')
+  .description('Show your deposit addresses and supported networks')
+  .action(async () => {
+    const creds = requireAuth();
+
+    // ── Fetch user wallets ───────────────────────────────────────────────
+    const spin = spinner('Fetching deposit addresses…');
+
+    const [userRes, accountRes] = await Promise.all([
+      getCurrentUser(creds.accessToken),
+      getAccount(creds.accessToken),
+    ]);
+
+    spin.stop();
+
+    if (!userRes.success || !userRes.data) {
+      error(userRes.error?.message ?? 'Failed to fetch account info');
+      process.exit(1);
+    }
+
+    const user = userRes.data;
+    const wallets = user.wallets;
+
+    if (!wallets || Object.keys(wallets).length === 0) {
+      info('No wallet addresses found. Your account may not have been fully initialized.');
+      info('Try logging in at https://minara.ai first, then run this command again.');
+      return;
+    }
+
+    // ── Display deposit addresses ────────────────────────────────────────
+    console.log('');
+    console.log(chalk.bold('Deposit Addresses'));
+    console.log(chalk.dim('Send tokens to the addresses below. Make sure to use the correct network!'));
+    console.log('');
+
+    const table = new Table({
+      head: [
+        chalk.white('Network'),
+        chalk.white('Address'),
+        chalk.white('Supported Chains'),
+      ],
+      colWidths: [14, 48, 40],
+      wordWrap: true,
+    });
+
+    const seen = new Set<string>();
+
+    for (const [walletType, address] of Object.entries(wallets)) {
+      if (!address || seen.has(address)) continue;
+      seen.add(address);
+
+      const { network, chains } = describeWalletType(walletType);
+
+      table.push([
+        chalk.cyan.bold(network),
+        chalk.yellow(address),
+        chains.join(', '),
+      ]);
+    }
+
+    console.log(table.toString());
+
+    // ── Warnings ─────────────────────────────────────────────────────────
+    console.log('');
+    console.log(chalk.red.bold('Important:'));
+    console.log(chalk.red('  • Only send tokens on the supported chains listed above.'));
+    console.log(chalk.red('  • Sending tokens on the wrong network may result in permanent loss.'));
+    console.log(chalk.red('  • EVM address supports all EVM-compatible chains (Ethereum, Base, Arbitrum, etc.)'));
+    console.log('');
+
+    // ── Also show cross-chain account details if available ───────────────
+    if (accountRes.success && accountRes.data) {
+      const wantDetails = await select({
+        message: 'Would you like to see detailed account info?',
+        choices: [
+          { name: 'Yes', value: true },
+          { name: 'No', value: false },
+        ],
+        default: false,
+      });
+      if (wantDetails) {
+        console.log(JSON.stringify(accountRes.data, null, 2));
+      }
+    }
+  });
