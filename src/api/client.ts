@@ -41,6 +41,9 @@ async function requestImpl<T>(
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
+    'Origin': 'https://minara.ai',
+    'Referer': 'https://minara.ai/',
+    'User-Agent': 'Minara-CLI/1.0',
     ...extraHeaders,
   };
   if (token) {

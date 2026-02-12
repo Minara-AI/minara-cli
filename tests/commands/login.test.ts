@@ -81,7 +81,7 @@ describe('login command', () => {
       const { loginCommand } = await import('../../src/commands/login.js');
       await loginCommand.parseAsync(['-e', 'user@test.com'], { from: 'user' });
 
-      expect(mockSend).toHaveBeenCalledWith({ email: 'user@test.com', platform: 'cli' });
+      expect(mockSend).toHaveBeenCalledWith({ email: 'user@test.com', platform: 'web' });
       expect(mockSave).toHaveBeenCalledWith({
         accessToken: 'jwt-token',
         userId: 'u1',
@@ -111,7 +111,7 @@ describe('login command', () => {
       const { loginCommand } = await import('../../src/commands/login.js');
       await loginCommand.parseAsync([], { from: 'user' });
 
-      expect(mockSend).toHaveBeenCalledWith({ email: 'me@test.com', platform: 'cli' });
+      expect(mockSend).toHaveBeenCalledWith({ email: 'me@test.com', platform: 'web' });
     });
   });
 

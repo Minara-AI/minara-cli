@@ -13,7 +13,9 @@ export async function sendChatStream(token: string, dto: ChatRequestDTO): Promis
       'Content-Type': 'application/json',
       'Accept': 'text/event-stream',
       'Authorization': `Bearer ${token}`,
-      'origin': 'https://minara.ai',
+      'Origin': 'https://minara.ai',
+      'Referer': 'https://minara.ai/',
+      'User-Agent': 'Minara-CLI/1.0',
     },
     body: JSON.stringify(dto),
   });

@@ -20,7 +20,7 @@ async function loginWithEmail(emailOpt?: string): Promise<void> {
   });
 
   const spin = spinner('Sending verification code…');
-  const codeRes = await sendEmailCode({ email, platform: 'cli' });
+  const codeRes = await sendEmailCode({ email, platform: 'web' });
   spin.stop();
 
   if (!codeRes.success) {
@@ -35,7 +35,7 @@ async function loginWithEmail(emailOpt?: string): Promise<void> {
   });
 
   const spin2 = spinner('Verifying…');
-  const verifyRes = await verifyEmailCode({ email, code, channel: 'cli', deviceType: 'cli' });
+  const verifyRes = await verifyEmailCode({ email, code, channel: 'web', deviceType: 'desktop' });
   spin2.stop();
 
   const user = unwrapApi(verifyRes, 'Verification failed');

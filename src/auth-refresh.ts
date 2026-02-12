@@ -50,7 +50,7 @@ export async function attemptReAuth(): Promise<string | null> {
     }
 
     // ── Send code ───────────────────────────────────────────────────────
-    const codeRes = await sendEmailCode({ email, platform: 'cli' });
+    const codeRes = await sendEmailCode({ email, platform: 'web' });
 
     if (!codeRes.success) {
       console.error(
@@ -72,8 +72,8 @@ export async function attemptReAuth(): Promise<string | null> {
     const verifyRes = await verifyEmailCode({
       email,
       code,
-      channel: 'cli',
-      deviceType: 'cli',
+      channel: 'web',
+      deviceType: 'desktop',
     });
 
     if (!verifyRes.success || !verifyRes.data) {

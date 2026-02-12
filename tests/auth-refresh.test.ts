@@ -86,7 +86,7 @@ describe('attemptReAuth', () => {
     // Should have used saved email
     expect(mockSendEmailCode).toHaveBeenCalledWith({
       email: 'saved@test.com',
-      platform: 'cli',
+      platform: 'web',
     });
   });
 
@@ -110,7 +110,7 @@ describe('attemptReAuth', () => {
     expect(result).toBe('manual-token');
     expect(mockSendEmailCode).toHaveBeenCalledWith({
       email: 'manual@test.com',
-      platform: 'cli',
+      platform: 'web',
     });
   });
 
