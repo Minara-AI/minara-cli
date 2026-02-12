@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync, unlinkSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { Credentials } from './types.js';
@@ -35,8 +35,11 @@ export function loadCredentials(): Credentials | null {
 }
 
 export function clearCredentials(): void {
-  if (existsSync(CREDENTIALS_FILE)) {
-    writeFileSync(CREDENTIALS_FILE, '', 'utf-8');
+  try {
+    if (existsSync(CREDENTIALS_FILE)) unlinkSync(CREDENTIALS_FILE);
+  } catch {
+    // Best-effort: if file deletion fails, overwrite with empty JSON
+    writeFileSync(CREDENTIALS_FILE, '{}', 'utf-8');
   }
 }
 

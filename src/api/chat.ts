@@ -55,10 +55,10 @@ export function deleteChat(token: string, chatId: string) {
 
 /** Search chats */
 export function searchChats(token: string, query: string, limit = 10, offset = 0) {
-  return get<unknown>('/v1/chat/search', { token, query: { query, limit, offset } });
+  return get<ChatInfo[]>('/v1/chat/search', { token, query: { query, limit, offset } });
 }
 
 /** Get available chat models */
 export function getChatModels(token: string) {
-  return get<unknown>('/v1/chat/models', { token });
+  return get<Record<string, unknown>[]>('/v1/chat/models', { token });
 }

@@ -71,7 +71,8 @@ async function requestImpl<T>(
       if (!res.ok) {
         return { success: false, error: { code: res.status, message: text || res.statusText } };
       }
-      return { success: true, data: text as unknown as T };
+      // Non-JSON success response — wrap the text as data
+      return { success: true, data: text as T };
     }
 
     if (!res.ok) {
@@ -130,8 +131,11 @@ async function handleAuthExpired<T>(
       // Retry the original request with the new token (isRetry = true)
       return requestImpl<T>(path, { ...opts, token: newToken }, true);
     }
-  } catch {
-    // Module load failure or unexpected error — fall through
+  } catch (err) {
+    // Module load failure or unexpected error — log for debugging, fall through
+    if (process.env.DEBUG) {
+      console.error('[minara] auth-refresh error:', err instanceof Error ? err.message : err);
+    }
   }
 
   return {

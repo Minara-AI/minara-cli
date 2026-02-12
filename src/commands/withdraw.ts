@@ -1,13 +1,9 @@
 import { Command } from 'commander';
-import { input, select, confirm } from '@inquirer/prompts';
+import { input, confirm } from '@inquirer/prompts';
 import chalk from 'chalk';
-import { transfer } from '../api/crosschain.js';
-import { getAssets } from '../api/crosschain.js';
+import { transfer, getAssets } from '../api/crosschain.js';
 import { requireAuth } from '../config.js';
-import { success, error, warn, spinner } from '../utils.js';
-import { SUPPORTED_CHAINS, type Chain } from '../types.js';
-
-const COMMON_CHAINS: Chain[] = ['solana', 'ethereum', 'base', 'arbitrum', 'bsc', 'polygon', 'optimism', 'avalanche'];
+import { success, warn, spinner, assertApiOk, selectChain, wrapAction } from '../utils.js';
 
 export const withdrawCommand = new Command('withdraw')
   .description('Withdraw tokens from your Minara wallet to an external address')
@@ -16,7 +12,7 @@ export const withdrawCommand = new Command('withdraw')
   .option('-a, --amount <amount>', 'Amount to withdraw')
   .option('--to <address>', 'Destination address')
   .option('-y, --yes', 'Skip confirmation')
-  .action(async (opts) => {
+  .action(wrapAction(async (opts) => {
     const creds = requireAuth();
 
     // ── 1. Show current assets for reference ─────────────────────────────
@@ -25,43 +21,27 @@ export const withdrawCommand = new Command('withdraw')
     assetsSpin.stop();
 
     if (assetsRes.success && assetsRes.data) {
-      const data = assetsRes.data;
-      if (Array.isArray(data) && data.length > 0) {
+      const assets = assetsRes.data;
+      if (Array.isArray(assets) && assets.length > 0) {
         console.log('');
         console.log(chalk.dim('Your current assets:'));
-        for (const asset of data.slice(0, 15) as Array<Record<string, unknown>>) {
+        for (const asset of assets.slice(0, 15)) {
           const sym = asset.symbol ?? asset.tokenSymbol ?? '';
           const bal = asset.balance ?? asset.amount ?? '';
-          const chain = asset.chain ?? asset.chainName ?? '';
+          const ch = asset.chain ?? asset.chainName ?? '';
           if (sym || bal) {
-            console.log(chalk.dim(`  ${sym}  ${bal}  (${chain})`));
+            console.log(chalk.dim(`  ${sym}  ${bal}  (${ch})`));
           }
         }
-        if (Array.isArray(data) && data.length > 15) {
-          console.log(chalk.dim(`  … and ${data.length - 15} more`));
+        if (assets.length > 15) {
+          console.log(chalk.dim(`  … and ${assets.length - 15} more`));
         }
         console.log('');
       }
     }
 
     // ── 2. Chain ─────────────────────────────────────────────────────────
-    let chain: Chain = opts.chain;
-    if (!chain) {
-      chain = await select({
-        message: 'Withdraw on which blockchain?',
-        choices: [
-          ...COMMON_CHAINS.map((c) => ({ name: c, value: c })),
-          { name: '── More chains ──', value: '__more__' as Chain },
-        ],
-        default: 'solana',
-      });
-      if (chain === '__more__' as Chain) {
-        chain = await select({
-          message: 'Select chain:',
-          choices: SUPPORTED_CHAINS.map((c) => ({ name: c, value: c })),
-        });
-      }
-    }
+    const chain = opts.chain ?? await selectChain('Withdraw on which blockchain?');
 
     // ── 3. Token ─────────────────────────────────────────────────────────
     const tokenAddress: string = opts.token ?? await input({
@@ -107,24 +87,14 @@ export const withdrawCommand = new Command('withdraw')
       }
     }
 
-    // ── 7. Execute (withdrawal = cross-chain transfer) ───────────────────
+    // ── 7. Execute ───────────────────────────────────────────────────────
     const spin = spinner('Processing withdrawal…');
-    const res = await transfer(creds.accessToken, {
-      chain,
-      tokenAddress,
-      tokenAmount: amount,
-      recipient,
-    });
+    const res = await transfer(creds.accessToken, { chain, tokenAddress, tokenAmount: amount, recipient });
     spin.stop();
 
-    if (!res.success) {
-      error(res.error?.message ?? 'Withdrawal failed');
-      process.exit(1);
-    }
+    assertApiOk(res, 'Withdrawal failed');
 
     success('Withdrawal submitted!');
-    if (res.data) {
-      console.log(JSON.stringify(res.data, null, 2));
-    }
+    if (res.data) console.log(JSON.stringify(res.data, null, 2));
     console.log(chalk.dim('\nIt may take a few minutes for the transaction to be confirmed on-chain.'));
-  });
+  }));

@@ -97,7 +97,7 @@ export interface ChatRequestDTO {
 export interface ChatInfo {
   chatId: string;
   name?: string;
-  firstMessage?: unknown;
+  firstMessage?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -105,9 +105,32 @@ export interface ChatInfo {
 export interface ChatMemory {
   id: string;
   role: 'user' | 'assistant';
-  content: unknown;
+  content: string | Record<string, unknown>;
   parentMessageId?: string;
   createdAt: string;
+}
+
+// ─── CrossChain Assets ──────────────────────────────────────────────────
+
+export interface WalletAsset {
+  symbol?: string;
+  tokenSymbol?: string;
+  balance?: string;
+  amount?: string;
+  chain?: string;
+  chainName?: string;
+  tokenAddress?: string;
+  usdValue?: string;
+}
+
+export interface CrossChainAccount {
+  [key: string]: unknown;
+}
+
+export interface TransactionResult {
+  transactionId?: string;
+  status?: string;
+  [key: string]: unknown;
 }
 
 // ─── CrossChain (Spot Trading) ───────────────────────────────────────────
@@ -155,14 +178,53 @@ export interface PerpsWithdrawDto {
   toAddress: string;
 }
 
+export interface PerpsOrder {
+  /** asset symbol */
+  a: string;
+  /** isBuy */
+  b: boolean;
+  /** limitPx / triggerPx */
+  p: string;
+  /** size */
+  s: string;
+  /** reduceOnly */
+  r: boolean;
+  /** order type: limit or trigger */
+  t: { limit: { tif: string } } | { trigger: { triggerPx: string; tpsl: string; isMarket: boolean } };
+}
+
 export interface PerpsPlaceOrdersDto {
-  orders: Record<string, unknown>[];
+  orders: PerpsOrder[];
   grouping: 'na' | 'normalTpsl' | 'positionTpsl';
   expiresAfter?: number;
 }
 
+export interface PerpsCancelEntry {
+  /** asset symbol */
+  a: string;
+  /** order id */
+  o: number;
+}
+
 export interface PerpsCancelOrdersDto {
-  cancels: Record<string, unknown>[];
+  cancels: PerpsCancelEntry[];
+}
+
+export interface PerpsPosition {
+  symbol?: string;
+  side?: string;
+  size?: string;
+  entryPrice?: string;
+  markPrice?: string;
+  pnl?: string;
+  leverage?: number;
+  [key: string]: unknown;
+}
+
+export interface TokenPrice {
+  symbol?: string;
+  price?: number;
+  [key: string]: unknown;
 }
 
 export interface UpdateLeverageDto {
@@ -295,6 +357,14 @@ export interface PaymentPlan {
   price?: number;
   currency?: string;
   interval?: string;
+}
+
+// ─── Gas Fees ────────────────────────────────────────────────────────────
+
+export interface GasFeeInfo {
+  chain?: string;
+  fee?: string;
+  [key: string]: unknown;
 }
 
 // ─── API generic ─────────────────────────────────────────────────────────

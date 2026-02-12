@@ -16,7 +16,9 @@ export function deleteTradeConfig(token: string) {
   return del<void>('/user-trade-config', { token });
 }
 
+import type { GasFeeInfo } from '../types.js';
+
 /** Get gas fees */
 export function getGasFees(token: string) {
-  return get<unknown>('/user-trade-config/gas-fees', { token });
+  return get<GasFeeInfo[]>('/user-trade-config/gas-fees', { token });
 }

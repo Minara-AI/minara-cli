@@ -53,5 +53,5 @@ export function addFavoriteTokens(token: string, payload: FavoriteTokensPayload)
 
 /** Get invite history */
 export function getInviteHistory(token: string) {
-  return get<unknown>('/auth/invite-history', { token });
+  return get<Record<string, unknown>[]>('/auth/invite-history', { token });
 }

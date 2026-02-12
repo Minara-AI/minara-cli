@@ -1,9 +1,9 @@
 import { Command } from 'commander';
-import { input, select, confirm } from '@inquirer/prompts';
+import { select } from '@inquirer/prompts';
 import chalk from 'chalk';
-import { sendChatStream, listChats, getMemories, deleteChat } from '../api/chat.js';
+import { sendChatStream, listChats, getMemories } from '../api/chat.js';
 import { requireAuth } from '../config.js';
-import { success, error, info, spinner } from '../utils.js';
+import { error, info, spinner, unwrapApi, wrapAction } from '../utils.js';
 import { createInterface } from 'node:readline';
 import { randomUUID } from 'node:crypto';
 
@@ -14,21 +14,21 @@ async function* parseSSE(response: Response): AsyncGenerator<string> {
   const decoder = new TextDecoder();
   let buffer = '';
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
 
-    const lines = buffer.split('\n');
-    buffer = lines.pop() ?? '';
+      const lines = buffer.split('\n');
+      buffer = lines.pop() ?? '';
 
-    for (const line of lines) {
-      if (line.startsWith('data:')) {
+      for (const line of lines) {
+        if (!line.startsWith('data:')) continue;
         const data = line.slice(5).trim();
         if (data === '[DONE]') return;
         try {
           const parsed = JSON.parse(data);
-          // Extract text content from various SSE event formats
           const text = parsed?.choices?.[0]?.delta?.content
             ?? parsed?.content
             ?? parsed?.text
@@ -37,10 +37,12 @@ async function* parseSSE(response: Response): AsyncGenerator<string> {
           if (text) yield text;
         } catch {
           // Non-JSON data line — might be raw text
-          if (data && data !== '[DONE]') yield data;
+          if (data) yield data;
         }
       }
     }
+  } finally {
+    reader.releaseLock();
   }
 }
 
@@ -52,7 +54,7 @@ export const chatCommand = new Command('chat')
   .option('--history <chatId>', 'Show chat history')
   .option('--thinking', 'Enable thinking/degen mode')
   .option('--deep-research', 'Enable deep research mode')
-  .action(async (messageArg?: string, opts?: {
+  .action(wrapAction(async (messageArg?: string, opts?: {
     chatId?: string; list?: boolean; history?: string;
     thinking?: boolean; deepResearch?: boolean;
   }) => {
@@ -63,14 +65,13 @@ export const chatCommand = new Command('chat')
       const spin = spinner('Fetching chats…');
       const res = await listChats(creds.accessToken);
       spin.stop();
-      if (!res.success || !res.data) { error(res.error?.message ?? 'Failed'); process.exit(1); }
-      const chats = res.data as unknown as Array<{ chatId: string; name?: string; updatedAt?: string }>;
-      if (!chats || chats.length === 0) {
+      const chats = unwrapApi(res, 'Failed to fetch chats');
+      if (chats.length === 0) {
         console.log(chalk.dim('No chats yet.'));
         return;
       }
       for (const c of chats) {
-        console.log(`  ${chalk.bold((c.chatId ?? '').slice(0, 12))}…  ${c.name ?? '(untitled)'}  ${chalk.dim(c.updatedAt ?? '')}`);
+        console.log(`  ${chalk.bold((c.chatId).slice(0, 12))}…  ${c.name ?? '(untitled)'}  ${chalk.dim(c.updatedAt ?? '')}`);
       }
       return;
     }
@@ -80,8 +81,7 @@ export const chatCommand = new Command('chat')
       const spin = spinner('Loading history…');
       const res = await getMemories(creds.accessToken, opts.history);
       spin.stop();
-      if (!res.success || !res.data) { error(res.error?.message ?? 'Failed'); process.exit(1); }
-      const memories = res.data as unknown as Array<{ role: string; content: unknown }>;
+      const memories = unwrapApi(res, 'Failed to load chat history');
       for (const m of memories) {
         const prefix = m.role === 'user' ? chalk.blue.bold('You   ') : chalk.green.bold('Minara');
         const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
@@ -105,12 +105,12 @@ export const chatCommand = new Command('chat')
         const spin = spinner('Fetching chats…');
         const res = await listChats(creds.accessToken);
         spin.stop();
-        const chats = res.data as unknown as Array<{ chatId: string; name?: string }>;
+        const chats = res.data;
         if (chats && chats.length > 0) {
           chatId = await select({
             message: 'Select chat:',
             choices: chats.map((c) => ({
-              name: `${(c.chatId ?? '').slice(0, 12)}…  ${c.name ?? '(untitled)'}`,
+              name: `${(c.chatId).slice(0, 12)}…  ${c.name ?? '(untitled)'}`,
               value: c.chatId,
             })),
           });
@@ -175,4 +175,4 @@ export const chatCommand = new Command('chat')
       }
       await sendAndPrint(userMsg);
     }
-  });
+  }));

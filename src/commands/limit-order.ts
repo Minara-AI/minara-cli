@@ -1,25 +1,19 @@
 import { Command } from 'commander';
 import { input, select, confirm, number as numberPrompt } from '@inquirer/prompts';
 import chalk from 'chalk';
-import Table from 'cli-table3';
 import * as loApi from '../api/limitorder.js';
 import { requireAuth } from '../config.js';
-import { success, error, info, spinner } from '../utils.js';
-import { SUPPORTED_CHAINS, type Chain } from '../types.js';
+import { success, info, spinner, assertApiOk, selectChain, wrapAction } from '../utils.js';
 
 // ─── create ──────────────────────────────────────────────────────────────
 
 const createCmd = new Command('create')
   .description('Create a limit order')
   .option('-y, --yes', 'Skip confirmation')
-  .action(async (opts) => {
+  .action(wrapAction(async (opts) => {
     const creds = requireAuth();
 
-    const chain: Chain = await select({
-      message: 'Chain:',
-      choices: SUPPORTED_CHAINS.map((c) => ({ name: c, value: c })),
-      default: 'solana',
-    });
+    const chain = await selectChain('Chain:', true);
 
     const side = await select({
       message: 'Side:',
@@ -72,30 +66,30 @@ const createCmd = new Command('create')
       priceCondition, targetPrice: targetPrice!, expiredAt,
     });
     spin.stop();
-    if (!res.success) { error(res.error?.message ?? 'Failed'); process.exit(1); }
+    assertApiOk(res, 'Failed to create limit order');
     success('Limit order created!');
     if (res.data) console.log(JSON.stringify(res.data, null, 2));
-  });
+  }));
 
 // ─── list ────────────────────────────────────────────────────────────────
 
 const listCmd = new Command('list')
   .alias('ls')
   .description('List your limit orders')
-  .action(async () => {
+  .action(wrapAction(async () => {
     const creds = requireAuth();
     const spin = spinner('Fetching limit orders…');
     const res = await loApi.listLimitOrders(creds.accessToken);
     spin.stop();
-    if (!res.success) { error(res.error?.message ?? 'Failed'); process.exit(1); }
+    assertApiOk(res, 'Failed to fetch limit orders');
 
     const orders = res.data;
-    if (!orders || (Array.isArray(orders) && orders.length === 0)) {
+    if (!orders || orders.length === 0) {
       console.log(chalk.dim('No limit orders.'));
       return;
     }
     console.log(JSON.stringify(orders, null, 2));
-  });
+  }));
 
 // ─── cancel ──────────────────────────────────────────────────────────────
 
@@ -103,22 +97,21 @@ const cancelCmd = new Command('cancel')
   .description('Cancel a limit order')
   .argument('[id]', 'Limit order ID')
   .option('-y, --yes', 'Skip confirmation')
-  .action(async (idArg?: string, opts?: { yes?: boolean }) => {
+  .action(wrapAction(async (idArg?: string, opts?: { yes?: boolean }) => {
     const creds = requireAuth();
 
     let id = idArg;
     if (!id) {
-      // Fetch and let user pick
       const spin = spinner('Fetching orders…');
       const listRes = await loApi.listLimitOrders(creds.accessToken);
       spin.stop();
-      const orders = listRes.data as unknown as Array<{ id: string; side?: string; targetPrice?: number; status?: string }>;
+      const orders = listRes.data;
       if (!orders || orders.length === 0) { info('No orders to cancel.'); return; }
 
       id = await select({
         message: 'Select order to cancel:',
         choices: orders.map((o) => ({
-          name: `[${o.id?.slice(0, 12)}…] ${o.side ?? ''} @ $${o.targetPrice ?? '?'}  status=${o.status ?? '?'}`,
+          name: `[${o.id.slice(0, 12)}…] ${o.side ?? ''} @ $${o.targetPrice ?? '?'}  status=${o.status ?? '?'}`,
           value: o.id,
         })),
       });
@@ -132,9 +125,9 @@ const cancelCmd = new Command('cancel')
     const spin = spinner('Cancelling…');
     const res = await loApi.cancelLimitOrder(creds.accessToken, id!);
     spin.stop();
-    if (!res.success) { error(res.error?.message ?? 'Failed'); process.exit(1); }
+    assertApiOk(res, 'Failed to cancel limit order');
     success('Limit order cancelled.');
-  });
+  }));
 
 // ─── parent ──────────────────────────────────────────────────────────────
 
@@ -144,7 +137,7 @@ export const limitOrderCommand = new Command('limit-order')
   .addCommand(createCmd)
   .addCommand(listCmd)
   .addCommand(cancelCmd)
-  .action(async () => {
+  .action(wrapAction(async () => {
     const action = await select({
       message: 'Limit Orders:',
       choices: [
@@ -155,4 +148,4 @@ export const limitOrderCommand = new Command('limit-order')
     });
     const sub = limitOrderCommand.commands.find((c) => c.name() === action);
     if (sub) await sub.parseAsync([], { from: 'user' });
-  });
+  }));

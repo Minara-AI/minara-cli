@@ -38,10 +38,10 @@ export function stopCopyTrade(token: string, id: string) {
 
 /** Get copy trade activity */
 export function getCopyTradeActivity(token: string, id: string) {
-  return get<unknown>(`/copy-trade/${encodeURIComponent(id)}/activity`, { token });
+  return get<Record<string, unknown>[]>(`/copy-trade/${encodeURIComponent(id)}/activity`, { token });
 }
 
 /** Get copy trade PnL chart */
 export function getCopyTradePnl(token: string, id: string) {
-  return get<unknown>(`/copy-trade/${encodeURIComponent(id)}/pnl/chart`, { token });
+  return get<Record<string, unknown>>(`/copy-trade/${encodeURIComponent(id)}/pnl/chart`, { token });
 }

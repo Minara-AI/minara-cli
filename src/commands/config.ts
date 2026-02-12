@@ -2,11 +2,11 @@ import { Command } from 'commander';
 import { input, select } from '@inquirer/prompts';
 import chalk from 'chalk';
 import { loadConfig, saveConfig, getMinaraDir } from '../config.js';
-import { success, info } from '../utils.js';
+import { success, info, wrapAction } from '../utils.js';
 
 export const configCommand = new Command('config')
   .description('View or update CLI configuration')
-  .action(async () => {
+  .action(wrapAction(async () => {
     const action = await select({
       message: 'Configuration:',
       choices: [
@@ -44,4 +44,4 @@ export const configCommand = new Command('config')
         info(`Config directory: ${getMinaraDir()}`);
         break;
     }
-  });
+  }));

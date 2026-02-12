@@ -1,27 +1,26 @@
 import { Command } from 'commander';
 import { input, select } from '@inquirer/prompts';
-import chalk from 'chalk';
 import { searchTokens, getTrendingTokens, searchStocks, getFearGreedIndex, getBitcoinMetrics } from '../api/tokens.js';
-import { spinner, error } from '../utils.js';
+import { spinner, assertApiOk, wrapAction } from '../utils.js';
 
 // ─── trending ────────────────────────────────────────────────────────────
 
 const trendingCmd = new Command('trending')
   .description('View trending tokens')
-  .action(async () => {
+  .action(wrapAction(async () => {
     const spin = spinner('Fetching trending tokens…');
     const res = await getTrendingTokens();
     spin.stop();
-    if (!res.success) { error(res.error?.message ?? 'Failed'); process.exit(1); }
+    assertApiOk(res, 'Failed to fetch trending tokens');
     console.log(JSON.stringify(res.data, null, 2));
-  });
+  }));
 
 // ─── search ──────────────────────────────────────────────────────────────
 
 const searchCmd = new Command('search')
   .description('Search for tokens or stocks')
   .argument('[keyword]', 'Search keyword')
-  .action(async (keywordArg?: string) => {
+  .action(wrapAction(async (keywordArg?: string) => {
     const keyword = keywordArg ?? await input({ message: 'Search keyword:' });
 
     const category = await select({
@@ -38,33 +37,33 @@ const searchCmd = new Command('search')
       : await searchStocks(keyword);
     spin.stop();
 
-    if (!res.success) { error(res.error?.message ?? 'Failed'); process.exit(1); }
+    assertApiOk(res, `Search for "${keyword}" failed`);
     console.log(JSON.stringify(res.data, null, 2));
-  });
+  }));
 
 // ─── fear-greed ──────────────────────────────────────────────────────────
 
 const fearGreedCmd = new Command('fear-greed')
   .description('View Fear & Greed Index')
-  .action(async () => {
-    const spin = spinner('Fetching…');
+  .action(wrapAction(async () => {
+    const spin = spinner('Fetching Fear & Greed Index…');
     const res = await getFearGreedIndex();
     spin.stop();
-    if (!res.success) { error(res.error?.message ?? 'Failed'); process.exit(1); }
+    assertApiOk(res, 'Failed to fetch Fear & Greed Index');
     console.log(JSON.stringify(res.data, null, 2));
-  });
+  }));
 
 // ─── btc metrics ─────────────────────────────────────────────────────────
 
 const btcCmd = new Command('btc-metrics')
   .description('View Bitcoin market metrics')
-  .action(async () => {
-    const spin = spinner('Fetching…');
+  .action(wrapAction(async () => {
+    const spin = spinner('Fetching Bitcoin metrics…');
     const res = await getBitcoinMetrics();
     spin.stop();
-    if (!res.success) { error(res.error?.message ?? 'Failed'); process.exit(1); }
+    assertApiOk(res, 'Failed to fetch Bitcoin metrics');
     console.log(JSON.stringify(res.data, null, 2));
-  });
+  }));
 
 // ─── parent ──────────────────────────────────────────────────────────────
 
@@ -74,7 +73,7 @@ export const discoverCommand = new Command('discover')
   .addCommand(searchCmd)
   .addCommand(fearGreedCmd)
   .addCommand(btcCmd)
-  .action(async () => {
+  .action(wrapAction(async () => {
     const action = await select({
       message: 'Discover:',
       choices: [
@@ -86,4 +85,4 @@ export const discoverCommand = new Command('discover')
     });
     const sub = discoverCommand.commands.find((c) => c.name() === action);
     if (sub) await sub.parseAsync([], { from: 'user' });
-  });
+  }));

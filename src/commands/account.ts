@@ -2,23 +2,19 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import { getCurrentUser } from '../api/auth.js';
 import { requireAuth } from '../config.js';
-import { error, spinner } from '../utils.js';
+import { spinner, unwrapApi, wrapAction } from '../utils.js';
 
 export const accountCommand = new Command('account')
   .alias('me')
   .description('View your Minara account info')
-  .action(async () => {
+  .action(wrapAction(async () => {
     const creds = requireAuth();
     const spin = spinner('Fetching account info…');
     const res = await getCurrentUser(creds.accessToken);
     spin.stop();
 
-    if (!res.success || !res.data) {
-      error(res.error?.message ?? 'Failed to fetch account info');
-      process.exit(1);
-    }
+    const u = unwrapApi(res, 'Failed to fetch account info');
 
-    const u = res.data;
     console.log('');
     console.log(chalk.bold('Account Info:'));
     if (u.displayName) console.log(`  Name        : ${chalk.cyan(u.displayName)}`);
@@ -39,4 +35,4 @@ export const accountCommand = new Command('account')
       }
     }
     console.log('');
-  });
+  }));

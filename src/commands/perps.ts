@@ -3,7 +3,8 @@ import { input, select, confirm, number as numberPrompt } from '@inquirer/prompt
 import chalk from 'chalk';
 import * as perpsApi from '../api/perps.js';
 import { requireAuth } from '../config.js';
-import { success, error, info, warn, spinner } from '../utils.js';
+import { success, info, warn, spinner, assertApiOk, wrapAction } from '../utils.js';
+import type { PerpsOrder } from '../types.js';
 
 // ─── deposit ─────────────────────────────────────────────────────────────
 
@@ -11,18 +12,17 @@ const depositCmd = new Command('deposit')
   .description('Deposit USDC into Hyperliquid perps (min 5 USDC)')
   .option('-a, --amount <amount>', 'USDC amount')
   .option('-y, --yes', 'Skip confirmation')
-  .action(async (opts) => {
+  .action(wrapAction(async (opts) => {
     const creds = requireAuth();
 
     const amount = opts.amount
       ? parseFloat(opts.amount)
-      : await numberPrompt({
-          message: 'USDC amount to deposit (min 5):',
-          min: 5,
-          required: true,
-        });
+      : await numberPrompt({ message: 'USDC amount to deposit (min 5):', min: 5, required: true });
 
-    if (!amount || amount < 5) { error('Minimum deposit is 5 USDC'); process.exit(1); }
+    if (!amount || amount < 5) {
+      console.error(chalk.red('✖'), 'Minimum deposit is 5 USDC');
+      process.exit(1);
+    }
 
     console.log(`\n  Deposit : ${chalk.bold(amount)} USDC → Perps\n`);
     if (!opts.yes) {
@@ -33,10 +33,10 @@ const depositCmd = new Command('deposit')
     const spin = spinner('Depositing…');
     const res = await perpsApi.deposit(creds.accessToken, { usdcAmount: amount });
     spin.stop();
-    if (!res.success) { error(res.error?.message ?? 'Deposit failed'); process.exit(1); }
+    assertApiOk(res, 'Deposit failed');
     success(`Deposited ${amount} USDC`);
     if (res.data) console.log(JSON.stringify(res.data, null, 2));
-  });
+  }));
 
 // ─── withdraw ────────────────────────────────────────────────────────────
 
@@ -45,7 +45,7 @@ const withdrawCmd = new Command('withdraw')
   .option('-a, --amount <amount>', 'USDC amount')
   .option('--to <address>', 'Destination address')
   .option('-y, --yes', 'Skip confirmation')
-  .action(async (opts) => {
+  .action(wrapAction(async (opts) => {
     const creds = requireAuth();
 
     const amount = opts.amount
@@ -67,51 +67,49 @@ const withdrawCmd = new Command('withdraw')
     const spin = spinner('Withdrawing…');
     const res = await perpsApi.withdraw(creds.accessToken, { usdcAmount: amount!, toAddress });
     spin.stop();
-    if (!res.success) { error(res.error?.message ?? 'Withdrawal failed'); process.exit(1); }
+    assertApiOk(res, 'Withdrawal failed');
     success('Withdrawal submitted');
     if (res.data) console.log(JSON.stringify(res.data, null, 2));
-  });
+  }));
 
 // ─── positions ───────────────────────────────────────────────────────────
 
 const positionsCmd = new Command('positions')
   .alias('pos')
   .description('View all open perps positions')
-  .action(async () => {
+  .action(wrapAction(async () => {
     const creds = requireAuth();
     const spin = spinner('Fetching positions…');
     const res = await perpsApi.getPositions(creds.accessToken);
     spin.stop();
-    if (!res.success) { error(res.error?.message ?? 'Failed'); process.exit(1); }
+    assertApiOk(res, 'Failed to fetch positions');
     console.log(JSON.stringify(res.data, null, 2));
-  });
+  }));
 
 // ─── order ───────────────────────────────────────────────────────────────
 
 const orderCmd = new Command('order')
   .description('Place a perps order')
   .option('-y, --yes', 'Skip confirmation')
-  .action(async (opts) => {
+  .action(wrapAction(async (opts) => {
     const creds = requireAuth();
 
     info('Building a Hyperliquid perps order…');
 
-    // Fetch prices for reference
+    // Fetch prices for reference (non-blocking — failure is OK)
     const pricesSpin = spinner('Fetching token prices…');
     const pricesRes = await perpsApi.getTokenPrices(creds.accessToken);
     pricesSpin.stop();
     if (pricesRes.success && pricesRes.data) {
       console.log(chalk.dim('Current prices:'));
-      const pd = pricesRes.data as Record<string, unknown>[];
-      if (Array.isArray(pd)) {
-        for (const p of pd.slice(0, 10)) {
-          console.log(chalk.dim(`  ${JSON.stringify(p)}`));
-        }
-        if (pd.length > 10) console.log(chalk.dim(`  … and ${pd.length - 10} more`));
+      const prices = pricesRes.data;
+      for (const p of prices.slice(0, 10)) {
+        console.log(chalk.dim(`  ${p.symbol ?? '?'}: $${p.price ?? '?'}`));
       }
+      if (prices.length > 10) console.log(chalk.dim(`  … and ${prices.length - 10} more`));
     }
 
-    const side = await select({
+    const isBuy = await select({
       message: 'Side:',
       choices: [
         { name: 'Long  (buy)', value: true },
@@ -124,14 +122,13 @@ const orderCmd = new Command('order')
     const orderType = await select({
       message: 'Order type:',
       choices: [
-        { name: 'Limit', value: 'limit' },
-        { name: 'Market (trigger)', value: 'market' },
+        { name: 'Limit', value: 'limit' as const },
+        { name: 'Market (trigger)', value: 'market' as const },
       ],
     });
 
     const limitPx = await input({ message: `Price (${orderType === 'limit' ? 'limit' : 'trigger'}):` });
     const sz = await input({ message: 'Size (in contracts):' });
-
     const reduceOnly = await confirm({ message: 'Reduce only?', default: false });
 
     const grouping = await select({
@@ -143,12 +140,12 @@ const orderCmd = new Command('order')
       ],
     });
 
-    const order: Record<string, unknown> = {
-      a: asset,         // asset (symbol index may differ, API-dependent)
-      b: side,          // isBuy
-      p: limitPx,       // limitPx
-      s: sz,            // sz
-      r: reduceOnly,    // reduceOnly
+    const order: PerpsOrder = {
+      a: asset,
+      b: isBuy,
+      p: limitPx,
+      s: sz,
+      r: reduceOnly,
       t: orderType === 'limit'
         ? { limit: { tif: 'Gtc' } }
         : { trigger: { triggerPx: limitPx, tpsl: 'tp', isMarket: true } },
@@ -167,23 +164,27 @@ const orderCmd = new Command('order')
     const spin = spinner('Placing order…');
     const res = await perpsApi.placeOrders(creds.accessToken, { orders: [order], grouping });
     spin.stop();
-    if (!res.success) { error(res.error?.message ?? 'Order failed'); process.exit(1); }
+    assertApiOk(res, 'Order placement failed');
     success('Order submitted!');
     if (res.data) console.log(JSON.stringify(res.data, null, 2));
-  });
+  }));
 
 // ─── cancel ──────────────────────────────────────────────────────────────
 
 const cancelCmd = new Command('cancel')
   .description('Cancel perps orders')
   .option('-y, --yes', 'Skip confirmation')
-  .action(async (opts) => {
+  .action(wrapAction(async (opts) => {
     const creds = requireAuth();
 
     const asset = await input({ message: 'Asset symbol to cancel (e.g. BTC):' });
-    const oid = await input({ message: 'Order ID (oid):' });
-
-    const cancel: Record<string, unknown> = { a: asset, o: parseInt(oid, 10) };
+    const oid = await input({
+      message: 'Order ID (oid):',
+      validate: (v) => {
+        const n = parseInt(v, 10);
+        return isNaN(n) ? 'Please enter a valid numeric order ID' : true;
+      },
+    });
 
     if (!opts.yes) {
       const ok = await confirm({ message: `Cancel order ${oid} for ${asset}?`, default: false });
@@ -191,23 +192,23 @@ const cancelCmd = new Command('cancel')
     }
 
     const spin = spinner('Cancelling…');
-    const res = await perpsApi.cancelOrders(creds.accessToken, { cancels: [cancel] });
+    const res = await perpsApi.cancelOrders(creds.accessToken, { cancels: [{ a: asset, o: parseInt(oid, 10) }] });
     spin.stop();
-    if (!res.success) { error(res.error?.message ?? 'Cancel failed'); process.exit(1); }
+    assertApiOk(res, 'Order cancellation failed');
     success('Order cancelled');
     if (res.data) console.log(JSON.stringify(res.data, null, 2));
-  });
+  }));
 
 // ─── leverage ────────────────────────────────────────────────────────────
 
 const leverageCmd = new Command('leverage')
   .description('Update leverage for a symbol')
-  .action(async () => {
+  .action(wrapAction(async () => {
     const creds = requireAuth();
 
     const symbol = await input({ message: 'Symbol (e.g. BTC):' });
     const leverage = await numberPrompt({ message: 'Leverage:', min: 1, max: 100, required: true });
-    const mode = await select({
+    const isCross = await select({
       message: 'Margin mode:',
       choices: [
         { name: 'Cross', value: true },
@@ -216,26 +217,24 @@ const leverageCmd = new Command('leverage')
     });
 
     const spin = spinner('Updating leverage…');
-    const res = await perpsApi.updateLeverage(creds.accessToken, {
-      symbol, isCross: mode, leverage: leverage!,
-    });
+    const res = await perpsApi.updateLeverage(creds.accessToken, { symbol, isCross, leverage: leverage! });
     spin.stop();
-    if (!res.success) { error(res.error?.message ?? 'Failed'); process.exit(1); }
-    success(`Leverage set to ${leverage}x (${mode ? 'cross' : 'isolated'}) for ${symbol}`);
-  });
+    assertApiOk(res, 'Failed to update leverage');
+    success(`Leverage set to ${leverage}x (${isCross ? 'cross' : 'isolated'}) for ${symbol}`);
+  }));
 
 // ─── trades ──────────────────────────────────────────────────────────────
 
 const tradesCmd = new Command('trades')
   .description('View completed perps trades')
-  .action(async () => {
+  .action(wrapAction(async () => {
     const creds = requireAuth();
     const spin = spinner('Fetching trades…');
     const res = await perpsApi.getCompletedTrades(creds.accessToken);
     spin.stop();
-    if (!res.success) { error(res.error?.message ?? 'Failed'); process.exit(1); }
+    assertApiOk(res, 'Failed to fetch trades');
     console.log(JSON.stringify(res.data, null, 2));
-  });
+  }));
 
 // ─── fund-records ────────────────────────────────────────────────────────
 
@@ -243,14 +242,14 @@ const fundRecordsCmd = new Command('fund-records')
   .description('View perps fund deposit/withdraw records')
   .option('-p, --page <n>', 'Page', '1')
   .option('-l, --limit <n>', 'Limit', '20')
-  .action(async (opts) => {
+  .action(wrapAction(async (opts) => {
     const creds = requireAuth();
     const spin = spinner('Fetching records…');
-    const res = await perpsApi.getFundRecords(creds.accessToken, parseInt(opts.page), parseInt(opts.limit));
+    const res = await perpsApi.getFundRecords(creds.accessToken, parseInt(opts.page, 10), parseInt(opts.limit, 10));
     spin.stop();
-    if (!res.success) { error(res.error?.message ?? 'Failed'); process.exit(1); }
+    assertApiOk(res, 'Failed to fetch fund records');
     console.log(JSON.stringify(res.data, null, 2));
-  });
+  }));
 
 // ═════════════════════════════════════════════════════════════════════════
 //  Parent
@@ -266,7 +265,7 @@ export const perpsCommand = new Command('perps')
   .addCommand(leverageCmd)
   .addCommand(tradesCmd)
   .addCommand(fundRecordsCmd)
-  .action(async () => {
+  .action(wrapAction(async () => {
     const action = await select({
       message: 'Perps — what would you like to do?',
       choices: [
@@ -282,4 +281,4 @@ export const perpsCommand = new Command('perps')
     });
     const sub = perpsCommand.commands.find((c) => c.name() === action || c.aliases().includes(action));
     if (sub) await sub.parseAsync([], { from: 'user' });
-  });
+  }));

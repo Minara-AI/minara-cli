@@ -1,10 +1,9 @@
 import { Command } from 'commander';
-import { input, select, confirm } from '@inquirer/prompts';
+import { input, confirm } from '@inquirer/prompts';
 import chalk from 'chalk';
 import { transfer } from '../api/crosschain.js';
 import { requireAuth } from '../config.js';
-import { success, error, warn, spinner } from '../utils.js';
-import { SUPPORTED_CHAINS, type Chain } from '../types.js';
+import { success, warn, spinner, assertApiOk, selectChain, wrapAction } from '../utils.js';
 
 export const transferCommand = new Command('transfer')
   .description('Transfer tokens to another address')
@@ -13,18 +12,11 @@ export const transferCommand = new Command('transfer')
   .option('-a, --amount <amount>', 'Token amount to send')
   .option('--to <address>', 'Recipient address')
   .option('-y, --yes', 'Skip confirmation')
-  .action(async (opts) => {
+  .action(wrapAction(async (opts) => {
     const creds = requireAuth();
 
     // ── 1. Chain ─────────────────────────────────────────────────────────
-    let chain: Chain = opts.chain;
-    if (!chain) {
-      chain = await select({
-        message: 'Select blockchain:',
-        choices: SUPPORTED_CHAINS.map((c) => ({ name: c, value: c })),
-        default: 'solana',
-      });
-    }
+    const chain = opts.chain ?? await selectChain();
 
     // ── 2. Token ─────────────────────────────────────────────────────────
     const tokenAddress: string = opts.token ?? await input({
@@ -58,10 +50,7 @@ export const transferCommand = new Command('transfer')
     warn('Transfers cannot be reversed. Double-check the recipient address!');
 
     if (!opts.yes) {
-      const confirmed = await confirm({
-        message: 'Confirm transfer?',
-        default: false,
-      });
+      const confirmed = await confirm({ message: 'Confirm transfer?', default: false });
       if (!confirmed) {
         console.log(chalk.dim('Transfer cancelled.'));
         return;
@@ -70,16 +59,10 @@ export const transferCommand = new Command('transfer')
 
     // ── 6. Execute ───────────────────────────────────────────────────────
     const spin = spinner('Processing transfer…');
-    const res = await transfer(creds.accessToken, {
-      chain, tokenAddress, tokenAmount: amount, recipient,
-    });
+    const res = await transfer(creds.accessToken, { chain, tokenAddress, tokenAmount: amount, recipient });
     spin.stop();
 
-    if (!res.success) {
-      error(res.error?.message ?? 'Transfer failed');
-      process.exit(1);
-    }
-
+    assertApiOk(res, 'Transfer failed');
     success('Transfer submitted!');
     if (res.data) console.log(JSON.stringify(res.data, null, 2));
-  });
+  }));

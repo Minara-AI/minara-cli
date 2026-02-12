@@ -64,7 +64,8 @@ program.action(() => {
   program.outputHelp();
 });
 
-program.parseAsync(process.argv).catch((err) => {
-  console.error(chalk.red('Error:'), err.message ?? err);
+program.parseAsync(process.argv).catch((err: unknown) => {
+  const message = err instanceof Error ? err.message : String(err);
+  console.error(chalk.red('Error:'), message);
   process.exit(1);
 });

@@ -3,8 +3,8 @@ import { input, select, confirm } from '@inquirer/prompts';
 import chalk from 'chalk';
 import { swap, swapsSimulate } from '../api/crosschain.js';
 import { requireAuth } from '../config.js';
-import { success, error, info, spinner, formatOrderSide } from '../utils.js';
-import { SUPPORTED_CHAINS, type Chain, type SwapSide } from '../types.js';
+import { success, info, spinner, formatOrderSide, assertApiOk, selectChain, wrapAction } from '../utils.js';
+import type { SwapSide } from '../types.js';
 
 export const swapCommand = new Command('swap')
   .description('Swap tokens (cross-chain spot trading)')
@@ -14,18 +14,11 @@ export const swapCommand = new Command('swap')
   .option('-a, --amount <amount>', 'USD amount (buy) or token amount (sell)')
   .option('-y, --yes', 'Skip confirmation')
   .option('--dry-run', 'Simulate without executing')
-  .action(async (opts) => {
+  .action(wrapAction(async (opts) => {
     const creds = requireAuth();
 
     // ── 1. Chain ─────────────────────────────────────────────────────────
-    let chain: Chain = opts.chain;
-    if (!chain) {
-      chain = await select({
-        message: 'Select blockchain:',
-        choices: SUPPORTED_CHAINS.map((c) => ({ name: c, value: c })),
-        default: 'solana',
-      });
-    }
+    const chain = opts.chain ?? await selectChain();
 
     // ── 2. Side ──────────────────────────────────────────────────────────
     let side: SwapSide = opts.side;
@@ -72,11 +65,8 @@ export const swapCommand = new Command('swap')
         chain, side, tokenAddress, buyUsdAmountOrSellTokenAmount: amount,
       }]);
       spin.stop();
-      if (!simRes.success) {
-        error(simRes.error?.message ?? 'Simulation failed');
-      } else {
-        console.log(JSON.stringify(simRes.data, null, 2));
-      }
+      assertApiOk(simRes, 'Simulation failed');
+      console.log(JSON.stringify(simRes.data, null, 2));
       return;
     }
 
@@ -99,11 +89,7 @@ export const swapCommand = new Command('swap')
     });
     spin.stop();
 
-    if (!res.success) {
-      error(res.error?.message ?? 'Swap failed');
-      process.exit(1);
-    }
-
+    assertApiOk(res, 'Swap failed');
     success('Swap submitted!');
     if (res.data) console.log(JSON.stringify(res.data, null, 2));
-  });
+  }));
