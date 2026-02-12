@@ -21,6 +21,9 @@
     "test:coverage": "vitest run --coverage",
     "prepublishOnly": "npm run build"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "engines": {
     "node": ">=18"
   },
