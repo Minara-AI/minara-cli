@@ -4,6 +4,7 @@ import chalk from 'chalk';
 import { transfer } from '../api/crosschain.js';
 import { requireAuth } from '../config.js';
 import { success, warn, spinner, assertApiOk, selectChain, wrapAction } from '../utils.js';
+import { requireTouchId } from '../touchid.js';
 
 export const transferCommand = new Command('transfer')
   .description('Transfer tokens to another address')
@@ -57,7 +58,10 @@ export const transferCommand = new Command('transfer')
       }
     }
 
-    // ── 6. Execute ───────────────────────────────────────────────────────
+    // ── 6. Touch ID ──────────────────────────────────────────────────────
+    await requireTouchId();
+
+    // ── 7. Execute ───────────────────────────────────────────────────────
     const spin = spinner('Processing transfer…');
     const res = await transfer(creds.accessToken, { chain, tokenAddress, tokenAmount: amount, recipient });
     spin.stop();

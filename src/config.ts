@@ -56,6 +56,7 @@ export function requireAuth(): Credentials {
 
 export interface AppConfig {
   baseUrl: string;
+  touchId?: boolean;
 }
 
 const DEFAULT_CONFIG: AppConfig = {

@@ -4,6 +4,7 @@ import chalk from 'chalk';
 import * as ctApi from '../api/copytrade.js';
 import { requireAuth } from '../config.js';
 import { success, info, spinner, assertApiOk, selectChain, wrapAction } from '../utils.js';
+import { requireTouchId } from '../touchid.js';
 
 // ─── create ──────────────────────────────────────────────────────────────
 
@@ -52,6 +53,8 @@ const createCmd = new Command('create')
       const ok = await confirm({ message: 'Create this copy trade?', default: false });
       if (!ok) return;
     }
+
+    await requireTouchId();
 
     const spin = spinner('Creating copy trade…');
     const res = await ctApi.createCopyTrade(creds.accessToken, {

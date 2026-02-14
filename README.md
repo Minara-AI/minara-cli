@@ -19,6 +19,7 @@
 ## Features
 
 - **Multi-method Login** — Email verification code, Google OAuth, or Apple ID
+- **Touch ID Protection** — Biometric fingerprint verification for all fund operations (macOS)
 - **Deposit & Withdraw** — View deposit addresses across chains, withdraw to external wallets
 - **Asset Management** — View wallet balances across all supported chains
 - **AI Chat** — Stream conversations with Minara AI, with thinking and deep-research modes
@@ -197,7 +198,20 @@ minara discover btc-metrics        # Bitcoin hashrate, supply, dominance, etc.
 
 | Command | Description |
 |---------|-------------|
-| `minara config` | View or update CLI settings (e.g. API base URL) |
+| `minara config` | View or update CLI settings (base URL, Touch ID, etc.) |
+
+### Touch ID (macOS)
+
+Minara CLI supports macOS Touch ID to protect all fund-related operations. When enabled, transfers, withdrawals, swaps, orders, and other financial actions require fingerprint verification before execution.
+
+```bash
+# You'll be prompted to enable Touch ID after login, or toggle manually:
+minara config                     # Select "Touch ID" to enable / disable
+```
+
+**Protected operations:** `withdraw`, `transfer`, `swap`, `perps deposit`, `perps withdraw`, `perps order`, `limit-order create`, `copy-trade create`
+
+> **Note:** Touch ID requires macOS with Touch ID hardware. The `--yes` flag skips confirmation prompts but does **not** bypass Touch ID — biometric verification is always enforced when enabled.
 
 ## Supported Chains
 
@@ -235,6 +249,7 @@ npm run test:coverage   # With coverage report
 
 ## Security
 
+- **Touch ID** — Optional biometric protection for all fund operations (macOS only). A native Swift helper binary is compiled on first use and cached in `~/.minara/`
 - Credentials are stored in `~/.minara/credentials.json` with `0600` file permissions
 - The `~/.minara/` directory is created with `0700` permissions
 - Tokens are never logged or printed to the console

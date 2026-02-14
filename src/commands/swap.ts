@@ -4,6 +4,7 @@ import chalk from 'chalk';
 import { swap, swapsSimulate } from '../api/crosschain.js';
 import { requireAuth } from '../config.js';
 import { success, info, spinner, formatOrderSide, assertApiOk, selectChain, wrapAction } from '../utils.js';
+import { requireTouchId } from '../touchid.js';
 import type { SwapSide } from '../types.js';
 
 export const swapCommand = new Command('swap')
@@ -82,7 +83,10 @@ export const swapCommand = new Command('swap')
       }
     }
 
-    // ── 8. Execute ───────────────────────────────────────────────────────
+    // ── 8. Touch ID ──────────────────────────────────────────────────────
+    await requireTouchId();
+
+    // ── 9. Execute ───────────────────────────────────────────────────────
     const spin = spinner('Executing swap…');
     const res = await swap(creds.accessToken, {
       chain, side, tokenAddress, buyUsdAmountOrSellTokenAmount: amount,

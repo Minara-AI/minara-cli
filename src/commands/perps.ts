@@ -4,6 +4,7 @@ import chalk from 'chalk';
 import * as perpsApi from '../api/perps.js';
 import { requireAuth } from '../config.js';
 import { success, info, warn, spinner, assertApiOk, wrapAction } from '../utils.js';
+import { requireTouchId } from '../touchid.js';
 import type { PerpsOrder } from '../types.js';
 
 // ─── deposit ─────────────────────────────────────────────────────────────
@@ -29,6 +30,8 @@ const depositCmd = new Command('deposit')
       const ok = await confirm({ message: 'Confirm deposit?', default: true });
       if (!ok) return;
     }
+
+    await requireTouchId();
 
     const spin = spinner('Depositing…');
     const res = await perpsApi.deposit(creds.accessToken, { usdcAmount: amount });
@@ -63,6 +66,8 @@ const withdrawCmd = new Command('withdraw')
       const ok = await confirm({ message: 'Confirm withdrawal?', default: false });
       if (!ok) return;
     }
+
+    await requireTouchId();
 
     const spin = spinner('Withdrawing…');
     const res = await perpsApi.withdraw(creds.accessToken, { usdcAmount: amount!, toAddress });
@@ -160,6 +165,8 @@ const orderCmd = new Command('order')
       const ok = await confirm({ message: 'Submit order?', default: false });
       if (!ok) { console.log(chalk.dim('Cancelled.')); return; }
     }
+
+    await requireTouchId();
 
     const spin = spinner('Placing order…');
     const res = await perpsApi.placeOrders(creds.accessToken, { orders: [order], grouping });

@@ -9,10 +9,11 @@ import {
   startDeviceAuth,
   getDeviceAuthStatus,
 } from '../api/auth.js';
-import { saveCredentials, loadCredentials } from '../config.js';
+import { saveCredentials, loadCredentials, loadConfig, saveConfig } from '../config.js';
 import { success, error, info, warn, spinner, openBrowser, unwrapApi, wrapAction } from '../utils.js';
 import { startOAuthServer } from '../oauth-server.js';
 import { OAUTH_PROVIDERS, type OAuthProvider } from '../types.js';
+import { isTouchIdAvailable } from '../touchid.js';
 
 // ─── Login method type ────────────────────────────────────────────────────
 
@@ -265,6 +266,22 @@ export const loginCommand = new Command('login')
         await loginWithDevice();
       } else {
         await loginWithOAuth(method);
+      }
+
+      // ── Offer Touch ID setup (macOS only, if not already enabled) ────
+      const config = loadConfig();
+      if (!config.touchId && isTouchIdAvailable()) {
+        console.log('');
+        const enableTouchId = await confirm({
+          message: 'Enable Touch ID to protect fund operations (transfer, withdraw, swap, etc.)?',
+          default: true,
+        });
+        if (enableTouchId) {
+          saveConfig({ touchId: true });
+          success('Touch ID protection enabled!');
+          console.log(chalk.dim('  All fund-related operations now require fingerprint verification.'));
+          console.log(chalk.dim(`  To disable, run: ${chalk.cyan('minara config')} → Touch ID`));
+        }
       }
     }),
   );

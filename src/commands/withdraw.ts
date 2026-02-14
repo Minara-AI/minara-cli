@@ -4,6 +4,7 @@ import chalk from 'chalk';
 import { transfer, getAssets } from '../api/crosschain.js';
 import { requireAuth } from '../config.js';
 import { success, warn, spinner, assertApiOk, selectChain, wrapAction } from '../utils.js';
+import { requireTouchId } from '../touchid.js';
 
 export const withdrawCommand = new Command('withdraw')
   .description('Withdraw tokens from your Minara wallet to an external address')
@@ -87,7 +88,10 @@ export const withdrawCommand = new Command('withdraw')
       }
     }
 
-    // ── 7. Execute ───────────────────────────────────────────────────────
+    // ── 7. Touch ID ──────────────────────────────────────────────────────
+    await requireTouchId();
+
+    // ── 8. Execute ───────────────────────────────────────────────────────
     const spin = spinner('Processing withdrawal…');
     const res = await transfer(creds.accessToken, { chain, tokenAddress, tokenAmount: amount, recipient });
     spin.stop();

@@ -4,6 +4,7 @@ import chalk from 'chalk';
 import * as loApi from '../api/limitorder.js';
 import { requireAuth } from '../config.js';
 import { success, info, spinner, assertApiOk, selectChain, wrapAction } from '../utils.js';
+import { requireTouchId } from '../touchid.js';
 
 // ─── create ──────────────────────────────────────────────────────────────
 
@@ -59,6 +60,8 @@ const createCmd = new Command('create')
       const ok = await confirm({ message: 'Create this limit order?', default: false });
       if (!ok) return;
     }
+
+    await requireTouchId();
 
     const spin = spinner('Creating limit order…');
     const res = await loApi.createLimitOrder(creds.accessToken, {
