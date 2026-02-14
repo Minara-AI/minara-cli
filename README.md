@@ -86,14 +86,19 @@ minara login --apple          # Apple ID (opens browser)
 
 | Command | Description |
 |---------|-------------|
-| `minara assets` | View wallet balances across all chains |
+| `minara assets` | View wallet assets (interactive: spot / perps / both) |
+| `minara assets spot` | View spot wallet balances across all chains |
+| `minara assets perps` | View perps account balance and open positions |
 | `minara deposit` | Show deposit addresses and supported networks |
 | `minara withdraw` | Withdraw tokens to an external wallet |
 
 ```bash
+minara assets                     # Interactive: Spot / Perps / Both
+minara assets spot                # Spot wallet across all chains
+minara assets perps               # Perps account balance + positions
 minara deposit
 minara withdraw -c solana -t <token> -a 10 --to <address>
-minara withdraw   # Interactive mode
+minara withdraw                   # Interactive mode
 ```
 
 ### Spot Trading
@@ -186,12 +191,16 @@ minara chat --history <chatId>                 # Replay a specific conversation
 | `minara discover search <keyword>` | Search for tokens or stocks by name |
 | `minara discover fear-greed` | View the crypto Fear & Greed Index |
 | `minara discover btc-metrics` | View Bitcoin on-chain and market metrics |
+| `minara discover eth-metrics` | View Ethereum market metrics |
+| `minara discover sol-metrics` | View Solana market metrics |
 
 ```bash
 minara discover trending           # Top trending tokens right now
 minara discover search SOL         # Search for tokens matching "SOL"
 minara discover fear-greed         # Current market sentiment index
 minara discover btc-metrics        # Bitcoin hashrate, supply, dominance, etc.
+minara discover eth-metrics        # Ethereum network and market metrics
+minara discover sol-metrics        # Solana network and market metrics
 ```
 
 ### Configuration

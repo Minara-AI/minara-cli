@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import { input, select } from '@inquirer/prompts';
-import { searchTokens, getTrendingTokens, searchStocks, getFearGreedIndex, getBitcoinMetrics } from '../api/tokens.js';
+import { searchTokens, getTrendingTokens, searchStocks, getFearGreedIndex, getBitcoinMetrics, getEthereumMetrics, getSolanaMetrics } from '../api/tokens.js';
 import { spinner, assertApiOk, wrapAction } from '../utils.js';
 
 // ─── trending ────────────────────────────────────────────────────────────
@@ -65,6 +65,30 @@ const btcCmd = new Command('btc-metrics')
     console.log(JSON.stringify(res.data, null, 2));
   }));
 
+// ─── eth metrics ─────────────────────────────────────────────────────────
+
+const ethCmd = new Command('eth-metrics')
+  .description('View Ethereum market metrics')
+  .action(wrapAction(async () => {
+    const spin = spinner('Fetching Ethereum metrics…');
+    const res = await getEthereumMetrics();
+    spin.stop();
+    assertApiOk(res, 'Failed to fetch Ethereum metrics');
+    console.log(JSON.stringify(res.data, null, 2));
+  }));
+
+// ─── sol metrics ─────────────────────────────────────────────────────────
+
+const solCmd = new Command('sol-metrics')
+  .description('View Solana market metrics')
+  .action(wrapAction(async () => {
+    const spin = spinner('Fetching Solana metrics…');
+    const res = await getSolanaMetrics();
+    spin.stop();
+    assertApiOk(res, 'Failed to fetch Solana metrics');
+    console.log(JSON.stringify(res.data, null, 2));
+  }));
+
 // ─── parent ──────────────────────────────────────────────────────────────
 
 export const discoverCommand = new Command('discover')
@@ -73,6 +97,8 @@ export const discoverCommand = new Command('discover')
   .addCommand(searchCmd)
   .addCommand(fearGreedCmd)
   .addCommand(btcCmd)
+  .addCommand(ethCmd)
+  .addCommand(solCmd)
   .action(wrapAction(async () => {
     const action = await select({
       message: 'Discover:',
@@ -81,6 +107,8 @@ export const discoverCommand = new Command('discover')
         { name: 'Search tokens / stocks', value: 'search' },
         { name: 'Fear & Greed Index', value: 'fear-greed' },
         { name: 'Bitcoin metrics', value: 'btc-metrics' },
+        { name: 'Ethereum metrics', value: 'eth-metrics' },
+        { name: 'Solana metrics', value: 'sol-metrics' },
       ],
     });
     const sub = discoverCommand.commands.find((c) => c.name() === action);

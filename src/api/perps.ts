@@ -40,6 +40,11 @@ export function updateLeverage(token: string, dto: UpdateLeverageDto) {
   return post<void>('/v1/tx/perps/update-leverage', { token, body: dto });
 }
 
+/** Get perps account state (balance, equity, margin) */
+export function getAccountState(token: string) {
+  return get<Record<string, unknown>>('/v1/tx/perps/account-state', { token });
+}
+
 /** Get all positions */
 export function getPositions(token: string) {
   return get<PerpsPosition[]>('/v1/tx/perps/positions/all', { token });

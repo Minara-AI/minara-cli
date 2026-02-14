@@ -50,3 +50,13 @@ export function getFearGreedIndex() {
 export function getBitcoinMetrics() {
   return get<Record<string, unknown>>('/discover/bitcoin-metrics');
 }
+
+/** Get ethereum metrics */
+export function getEthereumMetrics() {
+  return get<Record<string, unknown>>('/discover/ethereum-metrics');
+}
+
+/** Get solana metrics */
+export function getSolanaMetrics() {
+  return get<Record<string, unknown>>('/discover/solana-metrics');
+}
