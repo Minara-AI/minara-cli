@@ -28,6 +28,7 @@
 - **Limit Orders** — Create, list, and cancel price-triggered orders
 - **Copy Trading** — Follow wallet addresses with configurable bots
 - **Market Discovery** — Trending tokens, Fear & Greed Index, Bitcoin metrics
+- **Rich CLI Output** — Formatted tables, colored values, and smart number display; use `--json` for raw JSON
 
 ## Installation
 
@@ -197,6 +198,16 @@ minara discover trending           # Top trending tokens right now
 minara discover search SOL         # Search for tokens matching "SOL"
 minara discover fear-greed         # Current market sentiment index
 minara discover btc-metrics        # Bitcoin hashrate, supply, dominance, etc.
+```
+
+### Output Format
+
+By default, all commands display data using formatted tables, colored text, and human-friendly numbers (e.g. `$1.23M`, `+3.46%`). To get raw JSON output for scripting or piping, add the `--json` flag to any command:
+
+```bash
+minara discover trending --json    # Raw JSON array of trending tokens
+minara discover btc-metrics --json # Full BTC metrics with OHLCV data
+minara assets spot --json          # Raw JSON asset list
 ```
 
 ### Configuration
