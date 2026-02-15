@@ -21,17 +21,23 @@ import { copyTradeCommand } from './commands/copy-trade.js';
 import { chatCommand } from './commands/chat.js';
 import { discoverCommand } from './commands/discover.js';
 import { configCommand } from './commands/config.js';
+import { setRawJson } from './formatters.js';
 
 const program = new Command();
 
 program
   .name('minara')
   .version(version)
+  .option('--json', 'Output raw JSON instead of formatted tables')
   .description(
     chalk.bold('Minara CLI') +
     ' — Your AI-powered digital finance assistant in the terminal.\n\n' +
     '  Login, swap, trade perps, copy-trade, and chat with Minara AI.'
-  );
+  )
+  .hook('preAction', (thisCommand) => {
+    const opts = thisCommand.optsWithGlobals();
+    if (opts.json) setRawJson(true);
+  });
 
 // ── Auth & Account ───────────────────────────────────────────────────────
 program.addCommand(loginCommand);

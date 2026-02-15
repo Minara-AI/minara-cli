@@ -4,7 +4,8 @@ import chalk from 'chalk';
 import { getAssets } from '../api/crosschain.js';
 import * as perpsApi from '../api/perps.js';
 import { requireAuth } from '../config.js';
-import { spinner, unwrapApi, assertApiOk, wrapAction } from '../utils.js';
+import { spinner, unwrapApi, wrapAction } from '../utils.js';
+import { printKV, printTable, ASSET_COLUMNS, POSITION_COLUMNS } from '../formatters.js';
 
 // ─── spot ────────────────────────────────────────────────────────────────
 
@@ -29,7 +30,11 @@ async function showSpotAssets(token: string): Promise<void> {
 
   console.log('');
   console.log(chalk.bold('Spot Wallet Assets:'));
-  console.log(JSON.stringify(data, null, 2));
+  if (Array.isArray(data)) {
+    printTable(data as object[], ASSET_COLUMNS);
+  } else {
+    printKV(data as object);
+  }
   console.log('');
 }
 
@@ -56,7 +61,7 @@ async function showPerpsAssets(token: string): Promise<void> {
   console.log(chalk.bold('Perps Account:'));
 
   if (accountRes.success && accountRes.data) {
-    console.log(JSON.stringify(accountRes.data, null, 2));
+    printKV(accountRes.data as object);
   } else {
     console.log(chalk.dim('  Could not fetch account state.'));
     if (accountRes.error?.message) {
@@ -78,7 +83,7 @@ async function showPerpsAssets(token: string): Promise<void> {
     if (!positions || (Array.isArray(positions) && positions.length === 0)) {
       console.log(chalk.dim('  No open positions.'));
     } else {
-      console.log(JSON.stringify(positions, null, 2));
+      printTable(positions as object[], POSITION_COLUMNS);
     }
   }
 

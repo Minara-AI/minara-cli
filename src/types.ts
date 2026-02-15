@@ -350,9 +350,15 @@ export interface TokenInfo {
   name?: string;
   address?: string;
   chain?: string;
+  logo?: string;
+  description?: string;
   price?: number;
-  change24h?: number;
+  priceChange24H?: number;
+  volume?: number;
+  volume24H?: number;
   marketCap?: number;
+  fdv?: number;
+  socialUrls?: Record<string, string>;
 }
 
 // ─── Discover ────────────────────────────────────────────────────────────

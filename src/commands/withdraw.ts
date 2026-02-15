@@ -5,6 +5,7 @@ import { transfer, getAssets } from '../api/crosschain.js';
 import { requireAuth } from '../config.js';
 import { success, warn, spinner, assertApiOk, selectChain, wrapAction } from '../utils.js';
 import { requireTouchId } from '../touchid.js';
+import { printTxResult } from '../formatters.js';
 
 export const withdrawCommand = new Command('withdraw')
   .description('Withdraw tokens from your Minara wallet to an external address')
@@ -99,6 +100,6 @@ export const withdrawCommand = new Command('withdraw')
     assertApiOk(res, 'Withdrawal failed');
 
     success('Withdrawal submitted!');
-    if (res.data) console.log(JSON.stringify(res.data, null, 2));
+    printTxResult(res.data);
     console.log(chalk.dim('\nIt may take a few minutes for the transaction to be confirmed on-chain.'));
   }));

@@ -5,6 +5,7 @@ import { swap, swapsSimulate } from '../api/crosschain.js';
 import { requireAuth } from '../config.js';
 import { success, info, spinner, formatOrderSide, assertApiOk, selectChain, wrapAction } from '../utils.js';
 import { requireTouchId } from '../touchid.js';
+import { printTxResult, printKV } from '../formatters.js';
 import type { SwapSide } from '../types.js';
 
 export const swapCommand = new Command('swap')
@@ -67,7 +68,16 @@ export const swapCommand = new Command('swap')
       }]);
       spin.stop();
       assertApiOk(simRes, 'Simulation failed');
-      console.log(JSON.stringify(simRes.data, null, 2));
+      console.log('');
+      console.log(chalk.bold('Simulation Result:'));
+      if (Array.isArray(simRes.data)) {
+        for (const item of simRes.data) {
+          printKV(item as Record<string, unknown>);
+          console.log('');
+        }
+      } else if (simRes.data) {
+        printKV(simRes.data as Record<string, unknown>);
+      }
       return;
     }
 
@@ -95,5 +105,5 @@ export const swapCommand = new Command('swap')
 
     assertApiOk(res, 'Swap failed');
     success('Swap submitted!');
-    if (res.data) console.log(JSON.stringify(res.data, null, 2));
+    printTxResult(res.data);
   }));

@@ -6,6 +6,7 @@ import { getCurrentUser } from '../api/auth.js';
 import { getAccount } from '../api/crosschain.js';
 import { requireAuth } from '../config.js';
 import { info, spinner, unwrapApi, wrapAction } from '../utils.js';
+import { printKV } from '../formatters.js';
 
 /**
  * Map wallet type keys from /auth/me → human-readable chain info.
@@ -84,7 +85,10 @@ export const depositCommand = new Command('deposit')
         default: false,
       });
       if (wantDetails) {
-        console.log(JSON.stringify(accountRes.data, null, 2));
+        console.log('');
+        console.log(chalk.bold('Account Details:'));
+        printKV(accountRes.data as Record<string, unknown>);
+        console.log('');
       }
     }
   }));

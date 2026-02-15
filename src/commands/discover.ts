@@ -1,7 +1,9 @@
 import { Command } from 'commander';
 import { input, select } from '@inquirer/prompts';
-import { searchTokens, getTrendingTokens, searchStocks, getFearGreedIndex, getBitcoinMetrics, getEthereumMetrics, getSolanaMetrics } from '../api/tokens.js';
+import chalk from 'chalk';
+import { searchTokens, getTrendingTokens, searchStocks, getFearGreedIndex, getBitcoinMetrics } from '../api/tokens.js';
 import { spinner, assertApiOk, wrapAction } from '../utils.js';
+import { printKV, printTable, printFearGreed, printCryptoMetrics, TOKEN_COLUMNS } from '../formatters.js';
 
 // ─── trending ────────────────────────────────────────────────────────────
 
@@ -12,7 +14,15 @@ const trendingCmd = new Command('trending')
     const res = await getTrendingTokens();
     spin.stop();
     assertApiOk(res, 'Failed to fetch trending tokens');
-    console.log(JSON.stringify(res.data, null, 2));
+
+    console.log('');
+    console.log(chalk.bold('Trending Tokens:'));
+    if (Array.isArray(res.data) && res.data.length > 0) {
+      printTable(res.data, TOKEN_COLUMNS);
+    } else if (res.data && typeof res.data === 'object') {
+      printKV(res.data as object);
+    }
+    console.log('');
   }));
 
 // ─── search ──────────────────────────────────────────────────────────────
@@ -38,7 +48,17 @@ const searchCmd = new Command('search')
     spin.stop();
 
     assertApiOk(res, `Search for "${keyword}" failed`);
-    console.log(JSON.stringify(res.data, null, 2));
+
+    console.log('');
+    console.log(chalk.bold(`Search Results for "${keyword}":`));
+    if (Array.isArray(res.data) && res.data.length > 0) {
+      printTable(res.data, category === 'tokens' ? TOKEN_COLUMNS : undefined);
+    } else if (Array.isArray(res.data)) {
+      console.log(chalk.dim('  No results found.'));
+    } else if (res.data && typeof res.data === 'object') {
+      printKV(res.data as object);
+    }
+    console.log('');
   }));
 
 // ─── fear-greed ──────────────────────────────────────────────────────────
@@ -50,7 +70,11 @@ const fearGreedCmd = new Command('fear-greed')
     const res = await getFearGreedIndex();
     spin.stop();
     assertApiOk(res, 'Failed to fetch Fear & Greed Index');
-    console.log(JSON.stringify(res.data, null, 2));
+
+    console.log('');
+    console.log(chalk.bold('Fear & Greed Index:'));
+    printFearGreed(res.data as Record<string, unknown>);
+    console.log('');
   }));
 
 // ─── btc metrics ─────────────────────────────────────────────────────────
@@ -62,31 +86,11 @@ const btcCmd = new Command('btc-metrics')
     const res = await getBitcoinMetrics();
     spin.stop();
     assertApiOk(res, 'Failed to fetch Bitcoin metrics');
-    console.log(JSON.stringify(res.data, null, 2));
-  }));
 
-// ─── eth metrics ─────────────────────────────────────────────────────────
-
-const ethCmd = new Command('eth-metrics')
-  .description('View Ethereum market metrics')
-  .action(wrapAction(async () => {
-    const spin = spinner('Fetching Ethereum metrics…');
-    const res = await getEthereumMetrics();
-    spin.stop();
-    assertApiOk(res, 'Failed to fetch Ethereum metrics');
-    console.log(JSON.stringify(res.data, null, 2));
-  }));
-
-// ─── sol metrics ─────────────────────────────────────────────────────────
-
-const solCmd = new Command('sol-metrics')
-  .description('View Solana market metrics')
-  .action(wrapAction(async () => {
-    const spin = spinner('Fetching Solana metrics…');
-    const res = await getSolanaMetrics();
-    spin.stop();
-    assertApiOk(res, 'Failed to fetch Solana metrics');
-    console.log(JSON.stringify(res.data, null, 2));
+    console.log('');
+    console.log(chalk.bold('Bitcoin Metrics:'));
+    printCryptoMetrics(res.data as Record<string, unknown>);
+    console.log('');
   }));
 
 // ─── parent ──────────────────────────────────────────────────────────────
@@ -97,8 +101,6 @@ export const discoverCommand = new Command('discover')
   .addCommand(searchCmd)
   .addCommand(fearGreedCmd)
   .addCommand(btcCmd)
-  .addCommand(ethCmd)
-  .addCommand(solCmd)
   .action(wrapAction(async () => {
     const action = await select({
       message: 'Discover:',
@@ -107,8 +109,6 @@ export const discoverCommand = new Command('discover')
         { name: 'Search tokens / stocks', value: 'search' },
         { name: 'Fear & Greed Index', value: 'fear-greed' },
         { name: 'Bitcoin metrics', value: 'btc-metrics' },
-        { name: 'Ethereum metrics', value: 'eth-metrics' },
-        { name: 'Solana metrics', value: 'sol-metrics' },
       ],
     });
     const sub = discoverCommand.commands.find((c) => c.name() === action);

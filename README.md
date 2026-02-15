@@ -69,10 +69,10 @@ minara discover trending
 
 ### Auth & Account
 
-| Command | Description |
-|---------|-------------|
-| `minara login` | Login via email, Google, or Apple ID |
-| `minara logout` | Logout and clear local credentials |
+| Command          | Description                                 |
+| ---------------- | ------------------------------------------- |
+| `minara login`   | Login via email, Google, or Apple ID        |
+| `minara logout`  | Logout and clear local credentials          |
 | `minara account` | View your account info and wallet addresses |
 
 ```bash
@@ -84,13 +84,13 @@ minara login --apple          # Apple ID (opens browser)
 
 ### Wallet & Funds
 
-| Command | Description |
-|---------|-------------|
-| `minara assets` | View wallet assets (interactive: spot / perps / both) |
-| `minara assets spot` | View spot wallet balances across all chains |
-| `minara assets perps` | View perps account balance and open positions |
-| `minara deposit` | Show deposit addresses and supported networks |
-| `minara withdraw` | Withdraw tokens to an external wallet |
+| Command               | Description                                           |
+| --------------------- | ----------------------------------------------------- |
+| `minara assets`       | View wallet assets (interactive: spot / perps / both) |
+| `minara assets spot`  | View spot wallet balances across all chains           |
+| `minara assets perps` | View perps account balance and open positions         |
+| `minara deposit`      | Show deposit addresses and supported networks         |
+| `minara withdraw`     | Withdraw tokens to an external wallet                 |
 
 ```bash
 minara assets                     # Interactive: Spot / Perps / Both
@@ -103,9 +103,9 @@ minara withdraw                   # Interactive mode
 
 ### Spot Trading
 
-| Command | Description |
-|---------|-------------|
-| `minara swap` | Swap tokens (cross-chain) |
+| Command           | Description                        |
+| ----------------- | ---------------------------------- |
+| `minara swap`     | Swap tokens (cross-chain)          |
 | `minara transfer` | Transfer tokens to another address |
 
 ```bash
@@ -116,16 +116,16 @@ minara swap --dry-run              # Simulate without executing
 
 ### Perpetual Futures
 
-| Command | Description |
-|---------|-------------|
-| `minara perps deposit` | Deposit USDC to Hyperliquid perps account |
-| `minara perps withdraw` | Withdraw USDC from perps account |
-| `minara perps positions` | View all open positions |
-| `minara perps order` | Place an order (interactive builder) |
-| `minara perps cancel` | Cancel open orders |
-| `minara perps leverage` | Update leverage for a symbol |
-| `minara perps trades` | View completed trade history |
-| `minara perps fund-records` | View fund deposit/withdrawal records |
+| Command                     | Description                               |
+| --------------------------- | ----------------------------------------- |
+| `minara perps deposit`      | Deposit USDC to Hyperliquid perps account |
+| `minara perps withdraw`     | Withdraw USDC from perps account          |
+| `minara perps positions`    | View all open positions                   |
+| `minara perps order`        | Place an order (interactive builder)      |
+| `minara perps cancel`       | Cancel open orders                        |
+| `minara perps leverage`     | Update leverage for a symbol              |
+| `minara perps trades`       | View completed trade history              |
+| `minara perps fund-records` | View fund deposit/withdrawal records      |
 
 ```bash
 minara perps deposit -a 100        # Deposit 100 USDC to perps
@@ -137,11 +137,11 @@ minara perps leverage              # Interactive: set leverage for a trading pai
 
 ### Limit Orders
 
-| Command | Description |
-|---------|-------------|
-| `minara limit-order create` | Create a price-triggered limit order |
-| `minara limit-order list` | List all your limit orders |
-| `minara limit-order cancel <id>` | Cancel a specific order by ID |
+| Command                          | Description                          |
+| -------------------------------- | ------------------------------------ |
+| `minara limit-order create`      | Create a price-triggered limit order |
+| `minara limit-order list`        | List all your limit orders           |
+| `minara limit-order cancel <id>` | Cancel a specific order by ID        |
 
 ```bash
 minara limit-order create          # Interactive: token, price, side, amount, expiry
@@ -151,13 +151,13 @@ minara limit-order cancel abc123   # Cancel order by ID
 
 ### Copy Trading
 
-| Command | Description |
-|---------|-------------|
-| `minara copy-trade create` | Create a new copy-trade bot |
-| `minara copy-trade list` | List all copy-trade bots |
-| `minara copy-trade start <id>` | Start a paused bot |
-| `minara copy-trade stop <id>` | Pause a running bot |
-| `minara copy-trade delete <id>` | Delete a bot permanently |
+| Command                         | Description                 |
+| ------------------------------- | --------------------------- |
+| `minara copy-trade create`      | Create a new copy-trade bot |
+| `minara copy-trade list`        | List all copy-trade bots    |
+| `minara copy-trade start <id>`  | Start a paused bot          |
+| `minara copy-trade stop <id>`   | Pause a running bot         |
+| `minara copy-trade delete <id>` | Delete a bot permanently    |
 
 ```bash
 minara copy-trade create           # Interactive: target wallet, chain, amount, options
@@ -168,11 +168,11 @@ minara copy-trade stop abc123      # Pause a running bot
 
 ### AI Chat
 
-| Command | Description |
-|---------|-------------|
-| `minara chat [message]` | Send a message (or enter interactive mode) |
-| `minara chat --list` | List all your conversations |
-| `minara chat --history <chatId>` | View messages in a conversation |
+| Command                          | Description                                |
+| -------------------------------- | ------------------------------------------ |
+| `minara chat [message]`          | Send a message (or enter interactive mode) |
+| `minara chat --list`             | List all your conversations                |
+| `minara chat --history <chatId>` | View messages in a conversation            |
 
 ```bash
 minara chat "What is the current BTC price?"   # Single question, streamed answer
@@ -185,28 +185,24 @@ minara chat --history <chatId>                 # Replay a specific conversation
 
 ### Market Discovery
 
-| Command | Description |
-|---------|-------------|
-| `minara discover trending` | View currently trending tokens |
-| `minara discover search <keyword>` | Search for tokens or stocks by name |
-| `minara discover fear-greed` | View the crypto Fear & Greed Index |
-| `minara discover btc-metrics` | View Bitcoin on-chain and market metrics |
-| `minara discover eth-metrics` | View Ethereum market metrics |
-| `minara discover sol-metrics` | View Solana market metrics |
+| Command                            | Description                              |
+| ---------------------------------- | ---------------------------------------- |
+| `minara discover trending`         | View currently trending tokens           |
+| `minara discover search <keyword>` | Search for tokens or stocks by name      |
+| `minara discover fear-greed`       | View the crypto Fear & Greed Index       |
+| `minara discover btc-metrics`      | View Bitcoin on-chain and market metrics |
 
 ```bash
 minara discover trending           # Top trending tokens right now
 minara discover search SOL         # Search for tokens matching "SOL"
 minara discover fear-greed         # Current market sentiment index
 minara discover btc-metrics        # Bitcoin hashrate, supply, dominance, etc.
-minara discover eth-metrics        # Ethereum network and market metrics
-minara discover sol-metrics        # Solana network and market metrics
 ```
 
 ### Configuration
 
-| Command | Description |
-|---------|-------------|
+| Command         | Description                                            |
+| --------------- | ------------------------------------------------------ |
 | `minara config` | View or update CLI settings (base URL, Touch ID, etc.) |
 
 ### Touch ID (macOS)

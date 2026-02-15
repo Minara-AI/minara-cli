@@ -5,6 +5,7 @@ import * as loApi from '../api/limitorder.js';
 import { requireAuth } from '../config.js';
 import { success, info, spinner, assertApiOk, selectChain, wrapAction } from '../utils.js';
 import { requireTouchId } from '../touchid.js';
+import { printTxResult, printTable, LIMIT_ORDER_COLUMNS } from '../formatters.js';
 
 // ─── create ──────────────────────────────────────────────────────────────
 
@@ -71,7 +72,7 @@ const createCmd = new Command('create')
     spin.stop();
     assertApiOk(res, 'Failed to create limit order');
     success('Limit order created!');
-    if (res.data) console.log(JSON.stringify(res.data, null, 2));
+    printTxResult(res.data);
   }));
 
 // ─── list ────────────────────────────────────────────────────────────────
@@ -91,7 +92,10 @@ const listCmd = new Command('list')
       console.log(chalk.dim('No limit orders.'));
       return;
     }
-    console.log(JSON.stringify(orders, null, 2));
+    console.log('');
+    console.log(chalk.bold('Limit Orders:'));
+    printTable(orders, LIMIT_ORDER_COLUMNS);
+    console.log('');
   }));
 
 // ─── cancel ──────────────────────────────────────────────────────────────

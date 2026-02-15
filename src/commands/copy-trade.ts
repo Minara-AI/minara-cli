@@ -5,6 +5,7 @@ import * as ctApi from '../api/copytrade.js';
 import { requireAuth } from '../config.js';
 import { success, info, spinner, assertApiOk, selectChain, wrapAction } from '../utils.js';
 import { requireTouchId } from '../touchid.js';
+import { printTxResult, printTable, COPY_TRADE_COLUMNS } from '../formatters.js';
 
 // ─── create ──────────────────────────────────────────────────────────────
 
@@ -68,7 +69,7 @@ const createCmd = new Command('create')
     spin.stop();
     assertApiOk(res, 'Failed to create copy trade');
     success('Copy trade created!');
-    if (res.data) console.log(JSON.stringify(res.data, null, 2));
+    printTxResult(res.data);
   }));
 
 // ─── list ────────────────────────────────────────────────────────────────
@@ -88,7 +89,10 @@ const listCmd = new Command('list')
       console.log(chalk.dim('No copy trades.'));
       return;
     }
-    console.log(JSON.stringify(data, null, 2));
+    console.log('');
+    console.log(chalk.bold('Copy Trades:'));
+    printTable(data, COPY_TRADE_COLUMNS);
+    console.log('');
   }));
 
 // ─── start / stop ────────────────────────────────────────────────────────

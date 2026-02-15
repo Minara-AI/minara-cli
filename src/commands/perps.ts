@@ -3,8 +3,9 @@ import { input, select, confirm, number as numberPrompt } from '@inquirer/prompt
 import chalk from 'chalk';
 import * as perpsApi from '../api/perps.js';
 import { requireAuth } from '../config.js';
-import { success, info, warn, spinner, assertApiOk, wrapAction } from '../utils.js';
+import { success, info, warn, spinner, assertApiOk, formatOrderSide, wrapAction } from '../utils.js';
 import { requireTouchId } from '../touchid.js';
+import { printTxResult, printTable, printKV, POSITION_COLUMNS } from '../formatters.js';
 import type { PerpsOrder } from '../types.js';
 
 // ─── deposit ─────────────────────────────────────────────────────────────
@@ -38,7 +39,7 @@ const depositCmd = new Command('deposit')
     spin.stop();
     assertApiOk(res, 'Deposit failed');
     success(`Deposited ${amount} USDC`);
-    if (res.data) console.log(JSON.stringify(res.data, null, 2));
+    printTxResult(res.data);
   }));
 
 // ─── withdraw ────────────────────────────────────────────────────────────
@@ -74,7 +75,7 @@ const withdrawCmd = new Command('withdraw')
     spin.stop();
     assertApiOk(res, 'Withdrawal failed');
     success('Withdrawal submitted');
-    if (res.data) console.log(JSON.stringify(res.data, null, 2));
+    printTxResult(res.data);
   }));
 
 // ─── positions ───────────────────────────────────────────────────────────
@@ -88,7 +89,16 @@ const positionsCmd = new Command('positions')
     const res = await perpsApi.getPositions(creds.accessToken);
     spin.stop();
     assertApiOk(res, 'Failed to fetch positions');
-    console.log(JSON.stringify(res.data, null, 2));
+
+    const positions = res.data;
+    if (!positions || (Array.isArray(positions) && positions.length === 0)) {
+      console.log(chalk.dim('No open positions.'));
+    } else {
+      console.log('');
+      console.log(chalk.bold('Open Positions:'));
+      printTable(positions as object[], POSITION_COLUMNS);
+      console.log('');
+    }
   }));
 
 // ─── order ───────────────────────────────────────────────────────────────
@@ -158,7 +168,13 @@ const orderCmd = new Command('order')
 
     console.log('');
     console.log(chalk.bold('Order Preview:'));
-    console.log(JSON.stringify(order, null, 2));
+    console.log(`  Asset        : ${chalk.bold(order.a)}`);
+    console.log(`  Side         : ${formatOrderSide(order.b ? 'buy' : 'sell')}`);
+    console.log(`  Price        : ${chalk.yellow(order.p)}`);
+    console.log(`  Size         : ${chalk.bold(order.s)}`);
+    console.log(`  Reduce Only  : ${order.r ? chalk.yellow('Yes') : 'No'}`);
+    console.log(`  Type         : ${'limit' in order.t ? 'Limit (GTC)' : 'Trigger'}`);
+    console.log(`  Grouping     : ${grouping}`);
     console.log('');
 
     if (!opts.yes) {
@@ -173,7 +189,7 @@ const orderCmd = new Command('order')
     spin.stop();
     assertApiOk(res, 'Order placement failed');
     success('Order submitted!');
-    if (res.data) console.log(JSON.stringify(res.data, null, 2));
+    printTxResult(res.data);
   }));
 
 // ─── cancel ──────────────────────────────────────────────────────────────
@@ -203,7 +219,7 @@ const cancelCmd = new Command('cancel')
     spin.stop();
     assertApiOk(res, 'Order cancellation failed');
     success('Order cancelled');
-    if (res.data) console.log(JSON.stringify(res.data, null, 2));
+    printTxResult(res.data);
   }));
 
 // ─── leverage ────────────────────────────────────────────────────────────
@@ -240,7 +256,15 @@ const tradesCmd = new Command('trades')
     const res = await perpsApi.getCompletedTrades(creds.accessToken);
     spin.stop();
     assertApiOk(res, 'Failed to fetch trades');
-    console.log(JSON.stringify(res.data, null, 2));
+
+    console.log('');
+    console.log(chalk.bold('Completed Trades:'));
+    if (Array.isArray(res.data) && res.data.length > 0) {
+      printTable(res.data as Record<string, unknown>[]);
+    } else {
+      console.log(chalk.dim('  No completed trades.'));
+    }
+    console.log('');
   }));
 
 // ─── fund-records ────────────────────────────────────────────────────────
@@ -255,7 +279,15 @@ const fundRecordsCmd = new Command('fund-records')
     const res = await perpsApi.getFundRecords(creds.accessToken, parseInt(opts.page, 10), parseInt(opts.limit, 10));
     spin.stop();
     assertApiOk(res, 'Failed to fetch fund records');
-    console.log(JSON.stringify(res.data, null, 2));
+
+    console.log('');
+    console.log(chalk.bold('Fund Records:'));
+    if (Array.isArray(res.data) && res.data.length > 0) {
+      printTable(res.data as Record<string, unknown>[]);
+    } else {
+      console.log(chalk.dim('  No fund records.'));
+    }
+    console.log('');
   }));
 
 // ═════════════════════════════════════════════════════════════════════════

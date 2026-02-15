@@ -5,6 +5,7 @@ import { transfer } from '../api/crosschain.js';
 import { requireAuth } from '../config.js';
 import { success, warn, spinner, assertApiOk, selectChain, wrapAction } from '../utils.js';
 import { requireTouchId } from '../touchid.js';
+import { printTxResult } from '../formatters.js';
 
 export const transferCommand = new Command('transfer')
   .description('Transfer tokens to another address')
@@ -68,5 +69,5 @@ export const transferCommand = new Command('transfer')
 
     assertApiOk(res, 'Transfer failed');
     success('Transfer submitted!');
-    if (res.data) console.log(JSON.stringify(res.data, null, 2));
+    printTxResult(res.data);
   }));
