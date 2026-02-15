@@ -28,6 +28,7 @@
 - **Limit Orders** — Create, list, and cancel price-triggered orders
 - **Copy Trading** — Follow wallet addresses with configurable bots
 - **Market Discovery** — Trending tokens, Fear & Greed Index, Bitcoin metrics
+- **Premium Subscription** — View plans, subscribe via Stripe or Crypto, buy credit packages
 - **Rich CLI Output** — Formatted tables, colored values, and smart number display; use `--json` for raw JSON
 
 ## Installation
@@ -198,6 +199,24 @@ minara discover trending           # Top trending tokens right now
 minara discover search SOL         # Search for tokens matching "SOL"
 minara discover fear-greed         # Current market sentiment index
 minara discover btc-metrics        # Bitcoin hashrate, supply, dominance, etc.
+```
+
+### Premium & Subscription
+
+| Command                    | Description                                    |
+| -------------------------- | ---------------------------------------------- |
+| `minara premium plans`     | View all subscription plans and credit packages |
+| `minara premium status`    | View your current subscription status          |
+| `minara premium subscribe` | Subscribe or change plan (upgrade / downgrade) |
+| `minara premium buy-credits` | Buy a one-time credit package                |
+| `minara premium cancel`    | Cancel your current subscription               |
+
+```bash
+minara premium plans              # Compare Free, Lite, Starter, Pro, Partner plans
+minara premium status             # Check your current plan and billing info
+minara premium subscribe          # Interactive: select plan → Stripe or Crypto payment
+minara premium buy-credits        # Buy additional credits (one-time purchase)
+minara premium cancel             # Cancel subscription (keeps access until period ends)
 ```
 
 ### Output Format

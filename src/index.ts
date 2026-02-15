@@ -21,6 +21,7 @@ import { copyTradeCommand } from './commands/copy-trade.js';
 import { chatCommand } from './commands/chat.js';
 import { discoverCommand } from './commands/discover.js';
 import { configCommand } from './commands/config.js';
+import { premiumCommand } from './commands/premium.js';
 import { setRawJson } from './formatters.js';
 
 const program = new Command();
@@ -65,6 +66,9 @@ program.addCommand(chatCommand);
 
 // ── Market ───────────────────────────────────────────────────────────────
 program.addCommand(discoverCommand);
+
+// ── Premium ─────────────────────────────────────────────────────────────
+program.addCommand(premiumCommand);
 
 // ── Config ───────────────────────────────────────────────────────────────
 program.addCommand(configCommand);

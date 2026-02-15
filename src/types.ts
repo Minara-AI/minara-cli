@@ -48,6 +48,17 @@ export interface AuthUser {
   accounts?: Record<string, unknown>;
   invitationCode?: string;
   mfaSettings?: Record<string, unknown>;
+  subscription?: {
+    planId?: number;
+    planName?: string;
+    status?: string;
+    interval?: string;
+    currentPeriodEnd?: string;
+    cancelAtPeriodEnd?: boolean;
+    [key: string]: unknown;
+  };
+  plan?: Record<string, unknown>;
+  [key: string]: unknown;
 }
 
 // ─── Device Authorization Flow (RFC 8628) ─────────────────────────────────
@@ -75,7 +86,7 @@ export interface FavoriteTokensPayload {
 export type OAuthProvider = 'google' | 'apple';
 
 export const OAUTH_PROVIDERS: { name: string; value: OAuthProvider }[] = [
-  { name: 'Google',   value: 'google' },
+  { name: 'Google', value: 'google' },
   { name: 'Apple ID', value: 'apple' },
 ];
 
@@ -374,11 +385,48 @@ export interface DiscoverEvent {
 // ─── Payment / Subscription ──────────────────────────────────────────────
 
 export interface PaymentPlan {
-  id: string;
-  name?: string;
-  price?: number;
+  _id: string;
+  id: number;
+  name: string;
+  price: number;
+  status: string;
+  interval: 'month' | 'year';
+  rules: {
+    limitDegenMode?: number;
+    limitDeepresearch?: number;
+    limitCredit?: string;
+    limitWorkflows?: number;
+  };
+  stripePriceId?: string;
+  inviteCount?: number;
+}
+
+export interface CreditPackage {
+  _id: string;
+  id: number;
+  amount: number;
+  degenMode: number;
+  stripePriceId: string;
+  credit: string;
+}
+
+export interface PlansResponse {
+  plans: PaymentPlan[];
+  packages: CreditPackage[];
+}
+
+export interface CheckoutSession {
+  url?: string;
+  sessionId?: string;
+  [key: string]: unknown;
+}
+
+export interface CryptoCheckout {
+  url?: string;
+  address?: string;
+  amount?: number;
   currency?: string;
-  interval?: string;
+  [key: string]: unknown;
 }
 
 // ─── Gas Fees ────────────────────────────────────────────────────────────
