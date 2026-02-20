@@ -18,10 +18,10 @@
 
 ## Features
 
-- **AI Chat** — Interactive REPL (Python/Node.js-style) with streaming responses, thinking mode, and deep-research mode; also supports single-shot queries
-- **Wallet** — View balances across all chains, deposit addresses, and withdraw to external wallets
-- **Trading** — Cross-chain swaps, perpetual futures, limit orders, and copy trading; enter `$BONK` (ticker), token name, or contract address with auto-lookup and disambiguation
-- **Market Discovery** — Trending tokens, search, Fear & Greed Index, and on-chain metrics (BTC / ETH / SOL)
+- **AI Chat** — Crypto-native AI for on-chain analysis, market research, and DeFi due diligence. Interactive REPL & single-shot queries with fast / quality / thinking modes
+- **Wallet** — Balances, deposits, and withdrawals across all supported chains
+- **Trading** — Cross-chain swaps, perpetual futures, limit orders, and copy trading. Accepts `$TICKER`, token name, or contract address
+- **Market Discovery** — Trending tokens, Fear & Greed Index, on-chain metrics, and token / stock search
 
 ## Installation
 
@@ -179,8 +179,8 @@ minara copy-trade stop abc123      # Pause a running bot
 ```bash
 minara chat                                    # Enter interactive REPL mode
 minara chat "What is the current BTC price?"   # Single question, streamed answer
+minara chat --quality "Analyze ETH outlook"     # Quality mode (default: fast)
 minara chat --thinking "Analyze ETH outlook"   # Enable reasoning mode
-minara chat --deep-research "DeFi yield trends"# Deep research mode
 minara chat -c <chatId>                        # Continue a specific chat in REPL
 minara chat --list                             # List past conversations
 minara chat --history <chatId>                 # Replay a specific conversation

@@ -109,7 +109,6 @@ export interface ChatRequestDTO {
   chatId?: string;
   parentMessageId?: string;
   thinking?: boolean;
-  deepresearch?: boolean;
   workMode?: string;
   platform?: string;
   message: {

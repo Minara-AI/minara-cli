@@ -79,10 +79,10 @@ export const chatCommand = new Command('chat')
   .option('--list', 'List past chats')
   .option('--history <chatId>', 'Show chat history')
   .option('--thinking', 'Enable thinking/degen mode')
-  .option('--deep-research', 'Enable deep research mode')
+  .option('--quality', 'Use quality mode instead of the default fast mode')
   .action(wrapAction(async (messageArg?: string, opts?: {
     chatId?: string; list?: boolean; history?: string;
-    thinking?: boolean; deepResearch?: boolean;
+    thinking?: boolean; quality?: boolean;
   }) => {
     const creds = requireAuth();
 
@@ -127,7 +127,7 @@ export const chatCommand = new Command('chat')
         chatId,
         message: { role: 'user', content: msg },
         thinking: opts?.thinking,
-        deepresearch: opts?.deepResearch,
+        workMode: opts?.quality ? 'quality' : 'fast',
         chartOptions: { chartsCountRecommendedLimit: 0 },
       });
       if (!response.ok) {
@@ -175,8 +175,8 @@ export const chatCommand = new Command('chat')
 
     // ── Interactive REPL mode ────────────────────────────────────────────
     const modeFlags = [
+      opts?.quality ? chalk.cyan('quality') : chalk.green('fast'),
       opts?.thinking && chalk.yellow('thinking'),
-      opts?.deepResearch && chalk.magenta('deep-research'),
     ].filter(Boolean);
     const modeStr = modeFlags.length ? ` ${chalk.dim('[')}${modeFlags.join(chalk.dim(', '))}${chalk.dim(']')}` : '';
 
