@@ -10,6 +10,7 @@ export const configCommand = new Command('config')
   .action(wrapAction(async () => {
     const config = loadConfig();
 
+    const confirmTx = config.confirmBeforeTransaction !== false;
     const action = await select({
       message: 'Configuration:',
       choices: [
@@ -19,6 +20,10 @@ export const configCommand = new Command('config')
           name: `Touch ID  ${config.touchId ? chalk.green('[ON]') : chalk.dim('[OFF]')}`,
           value: 'touchId',
         },
+        {
+          name: `Transaction Confirmation  ${confirmTx ? chalk.green('[ON]') : chalk.dim('[OFF]')}`,
+          value: 'confirmTx',
+        },
         { name: 'Show config directory path', value: 'path' },
       ],
     });
@@ -27,9 +32,10 @@ export const configCommand = new Command('config')
       case 'show':
         console.log('');
         console.log(chalk.bold('Current Configuration:'));
-        console.log(`  Base URL    : ${chalk.cyan(config.baseUrl)}`);
-        console.log(`  Touch ID    : ${config.touchId ? chalk.green('Enabled') : chalk.dim('Disabled')}`);
-        console.log(`  Config Dir  : ${chalk.dim(getMinaraDir())}`);
+        console.log(`  Base URL      : ${chalk.cyan(config.baseUrl)}`);
+        console.log(`  Touch ID      : ${config.touchId ? chalk.green('Enabled') : chalk.dim('Disabled')}`);
+        console.log(`  Confirm Tx    : ${confirmTx ? chalk.green('Enabled') : chalk.dim('Disabled')}`);
+        console.log(`  Config Dir    : ${chalk.dim(getMinaraDir())}`);
         console.log('');
         break;
 
@@ -84,6 +90,31 @@ export const configCommand = new Command('config')
             saveConfig({ touchId: true });
             success('Touch ID protection enabled!');
             console.log(chalk.dim('  All fund-related operations now require fingerprint verification.'));
+          }
+        }
+        break;
+      }
+
+      case 'confirmTx': {
+        if (confirmTx) {
+          const disable = await confirm({
+            message: 'Transaction confirmation is currently enabled. Disable it?',
+            default: false,
+          });
+          if (disable) {
+            saveConfig({ confirmBeforeTransaction: false });
+            success('Transaction confirmation disabled.');
+            warn('Fund-related operations will no longer require a second confirmation.');
+          }
+        } else {
+          const enable = await confirm({
+            message: 'Enable transaction confirmation for fund-related operations?',
+            default: true,
+          });
+          if (enable) {
+            saveConfig({ confirmBeforeTransaction: true });
+            success('Transaction confirmation enabled!');
+            console.log(chalk.dim('  All fund-related operations now require a second confirmation before execution.'));
           }
         }
         break;

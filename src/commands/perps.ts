@@ -3,7 +3,7 @@ import { input, select, confirm, number as numberPrompt } from '@inquirer/prompt
 import chalk from 'chalk';
 import * as perpsApi from '../api/perps.js';
 import { requireAuth } from '../config.js';
-import { success, info, warn, spinner, assertApiOk, formatOrderSide, wrapAction } from '../utils.js';
+import { success, info, warn, spinner, assertApiOk, formatOrderSide, wrapAction, requireTransactionConfirmation } from '../utils.js';
 import { requireTouchId } from '../touchid.js';
 import { printTxResult, printTable, printKV, POSITION_COLUMNS } from '../formatters.js';
 import type { PerpsOrder } from '../types.js';
@@ -32,6 +32,7 @@ const depositCmd = new Command('deposit')
       if (!ok) return;
     }
 
+    await requireTransactionConfirmation(`Deposit ${amount} USDC → Perps`);
     await requireTouchId();
 
     const spin = spinner('Depositing…');
@@ -68,6 +69,7 @@ const withdrawCmd = new Command('withdraw')
       if (!ok) return;
     }
 
+    await requireTransactionConfirmation(`Withdraw ${amount} USDC → ${toAddress}`);
     await requireTouchId();
 
     const spin = spinner('Withdrawing…');
@@ -182,6 +184,7 @@ const orderCmd = new Command('order')
       if (!ok) { console.log(chalk.dim('Cancelled.')); return; }
     }
 
+    await requireTransactionConfirmation(`Perps ${order.b ? 'LONG' : 'SHORT'} ${order.a} · size ${order.s} @ ${order.p}`);
     await requireTouchId();
 
     const spin = spinner('Placing order…');

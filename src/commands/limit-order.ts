@@ -3,7 +3,7 @@ import { input, select, confirm, number as numberPrompt } from '@inquirer/prompt
 import chalk from 'chalk';
 import * as loApi from '../api/limitorder.js';
 import { requireAuth } from '../config.js';
-import { success, info, spinner, assertApiOk, selectChain, wrapAction } from '../utils.js';
+import { success, info, spinner, assertApiOk, selectChain, wrapAction, requireTransactionConfirmation, lookupToken, formatTokenLabel } from '../utils.js';
 import { requireTouchId } from '../touchid.js';
 import { printTxResult, printTable, LIMIT_ORDER_COLUMNS } from '../formatters.js';
 
@@ -25,10 +25,11 @@ const createCmd = new Command('create')
       ],
     });
 
-    const targetTokenCA = await input({
-      message: 'Target token contract address:',
+    const tokenInput = await input({
+      message: 'Target token (contract address or ticker):',
       validate: (v) => (v.length > 0 ? true : 'Required'),
     });
+    const tokenInfo = await lookupToken(tokenInput);
 
     const priceCondition = await select({
       message: 'Trigger when price is:',
@@ -51,7 +52,8 @@ const createCmd = new Command('create')
     console.log(chalk.bold('Limit Order:'));
     console.log(`  Chain     : ${chalk.cyan(chain)}`);
     console.log(`  Side      : ${side}`);
-    console.log(`  Token     : ${chalk.yellow(targetTokenCA)}`);
+    console.log(`  Token     : ${formatTokenLabel(tokenInfo)}`);
+    console.log(`  Address   : ${chalk.yellow(tokenInfo.address)}`);
     console.log(`  Condition : price ${priceCondition} $${targetPrice}`);
     console.log(`  Amount    : $${amount}`);
     console.log(`  Expires   : ${new Date(expiredAt * 1000).toLocaleString()}`);
@@ -62,11 +64,12 @@ const createCmd = new Command('create')
       if (!ok) return;
     }
 
+    await requireTransactionConfirmation(`Limit ${side} · $${amount} · price ${priceCondition} $${targetPrice} · ${chain}`, tokenInfo);
     await requireTouchId();
 
     const spin = spinner('Creating limit order…');
     const res = await loApi.createLimitOrder(creds.accessToken, {
-      chain, side, amount, targetTokenCA,
+      chain, side, amount, targetTokenCA: tokenInfo.address,
       priceCondition, targetPrice: targetPrice!, expiredAt,
     });
     spin.stop();

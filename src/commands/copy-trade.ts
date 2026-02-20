@@ -3,7 +3,7 @@ import { input, select, confirm, number as numberPrompt } from '@inquirer/prompt
 import chalk from 'chalk';
 import * as ctApi from '../api/copytrade.js';
 import { requireAuth } from '../config.js';
-import { success, info, spinner, assertApiOk, selectChain, wrapAction } from '../utils.js';
+import { success, info, spinner, assertApiOk, selectChain, wrapAction, requireTransactionConfirmation } from '../utils.js';
 import { requireTouchId } from '../touchid.js';
 import { printTxResult, printTable, COPY_TRADE_COLUMNS } from '../formatters.js';
 
@@ -55,6 +55,7 @@ const createCmd = new Command('create')
       if (!ok) return;
     }
 
+    await requireTransactionConfirmation(`Copy trade · $${fixedAmount}/trade · target ${targetAddress} · ${chain}`);
     await requireTouchId();
 
     const spin = spinner('Creating copy trade…');

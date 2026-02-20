@@ -27,16 +27,13 @@ async function* parseSSE(response: Response): AsyncGenerator<string> {
         if (!line) continue;
 
         // Handle AI SDK v5 streaming format: "type:value"
-        // e.g., "0:text", "1:reasoning", "9:tool_call"
         const colonIndex = line.indexOf(':');
         if (colonIndex !== -1) {
           const type = line.slice(0, colonIndex);
           const data = line.slice(colonIndex + 1);
 
-          // Type 0 is text content
           if (type === '0' && data) {
             try {
-              // Data might be JSON-encoded string like "text" or actual JSON
               const parsed = JSON.parse(data);
               if (typeof parsed === 'string') {
                 yield parsed;
@@ -46,12 +43,9 @@ async function* parseSSE(response: Response): AsyncGenerator<string> {
                 yield parsed.content;
               }
             } catch {
-              // If parsing fails, treat as raw text
               yield data;
             }
           }
-          // Type 1 is reasoning (can be skipped or shown differently)
-          // Type 9 is tool_call (can be skipped for now)
           continue;
         }
 
@@ -68,7 +62,6 @@ async function* parseSSE(response: Response): AsyncGenerator<string> {
               ?? (typeof parsed === 'string' ? parsed : null);
             if (text) yield text;
           } catch {
-            // Non-JSON data line — might be raw text
             if (data) yield data;
           }
         }
@@ -80,8 +73,8 @@ async function* parseSSE(response: Response): AsyncGenerator<string> {
 }
 
 export const chatCommand = new Command('chat')
-  .description('Chat with Minara AI assistant')
-  .argument('[message]', 'Send a single message (non-interactive)')
+  .description('Chat with Minara AI assistant (interactive REPL when no message given)')
+  .argument('[message]', 'Send a single message and exit')
   .option('-c, --chat-id <id>', 'Continue existing chat')
   .option('--list', 'List past chats')
   .option('--history <chatId>', 'Show chat history')
@@ -125,39 +118,11 @@ export const chatCommand = new Command('chat')
 
     // ── Chat context ─────────────────────────────────────────────────────
     let chatId: string | undefined = opts?.chatId;
-
-    if (!chatId && !messageArg) {
-      const mode = await select({
-        message: 'Chat mode:',
-        choices: [
-          { name: 'Start a new conversation', value: 'new' },
-          { name: 'Continue existing conversation', value: 'continue' },
-        ],
-      });
-      if (mode === 'continue') {
-        const spin = spinner('Fetching chats…');
-        const res = await listChats(creds.accessToken);
-        spin.stop();
-        const chats = res.data;
-        if (chats && chats.length > 0) {
-          chatId = await select({
-            message: 'Select chat:',
-            choices: chats.map((c) => ({
-              name: `${(c.chatId).slice(0, 12)}…  ${c.name ?? '(untitled)'}`,
-              value: c.chatId,
-            })),
-          });
-        } else {
-          info('No existing chats. Starting new.');
-        }
-      }
-    }
-
     if (!chatId) chatId = randomUUID();
 
-    // ── Send single message ──────────────────────────────────────────────
+    // ── Stream a response and print to stdout ────────────────────────────
     async function sendAndPrint(msg: string) {
-      process.stdout.write(`${chalk.green.bold('Minara')}: `);
+      process.stdout.write(chalk.green.bold('Minara') + chalk.dim(': '));
       const response = await sendChatStream(creds.accessToken, {
         chatId,
         message: { role: 'user', content: msg },
@@ -202,45 +167,121 @@ export const chatCommand = new Command('chat')
       console.log('\n');
     }
 
+    // ── Single-shot mode: minara chat "message" ──────────────────────────
     if (messageArg) {
       await sendAndPrint(messageArg);
       return;
     }
 
-    // ── REPL ─────────────────────────────────────────────────────────────
+    // ── Interactive REPL mode ────────────────────────────────────────────
+    const modeFlags = [
+      opts?.thinking && chalk.yellow('thinking'),
+      opts?.deepResearch && chalk.magenta('deep-research'),
+    ].filter(Boolean);
+    const modeStr = modeFlags.length ? ` ${chalk.dim('[')}${modeFlags.join(chalk.dim(', '))}${chalk.dim(']')}` : '';
+
     console.log('');
-    console.log(chalk.bold('Minara AI Chat'));
-    console.log(chalk.dim('Type your message. "exit" to quit, "/new" for new chat, "/help" for commands.'));
+    console.log(
+      chalk.green.bold('Minara AI Chat') +
+      chalk.dim(` session:${chatId.slice(0, 8)}`) +
+      modeStr,
+    );
+    console.log(chalk.dim('─'.repeat(50)));
+    console.log(chalk.dim('Type a message to chat. /help for commands, Ctrl+C to exit.'));
     console.log('');
 
     const rl = createInterface({ input: process.stdin, output: process.stdout });
 
-    // Fix: Pause readline before streaming response to prevent prompt interference
     async function sendAndPrintWithPause(msg: string) {
-      rl.pause(); // Pause readline to prevent prompt interference
+      rl.pause();
       try {
         await sendAndPrint(msg);
       } finally {
-        rl.resume(); // Resume readline after streaming is complete
-        process.stdout.write('\n'); // Ensure clean line before next prompt
+        rl.resume();
+        process.stdout.write('\n');
       }
     }
 
-    const prompt = (): Promise<string> => new Promise((resolve) => {
-      rl.question(chalk.blue('You: '), resolve);
+    const ask = (): Promise<string> =>
+      new Promise((resolve) => rl.question(chalk.blue.bold('>>> '), resolve));
+
+    rl.on('close', () => {
+      console.log(chalk.dim('\nGoodbye!'));
+      process.exit(0);
     });
-    rl.on('close', () => { console.log(chalk.dim('\nGoodbye!')); process.exit(0); });
 
     while (true) {
-      const userMsg = (await prompt()).trim();
+      const userMsg = (await ask()).trim();
       if (!userMsg) continue;
+
+      // ── REPL commands ──────────────────────────────────────────────────
       if (userMsg.toLowerCase() === 'exit' || userMsg.toLowerCase() === 'quit') {
-        console.log(chalk.dim('Goodbye!')); rl.close(); break;
+        console.log(chalk.dim('Goodbye!'));
+        rl.close();
+        break;
       }
-      if (userMsg === '/new') { chatId = randomUUID(); info('New conversation started.'); continue; }
-      if (userMsg === '/id') { console.log(chalk.dim(`Chat ID: ${chatId}`)); continue; }
+
+      if (userMsg === '/new') {
+        chatId = randomUUID();
+        info(`New conversation started ${chalk.dim(`(session:${chatId.slice(0, 8)})`)}`);
+        continue;
+      }
+
+      if (userMsg === '/id') {
+        console.log(chalk.dim(`Chat ID: ${chatId}`));
+        continue;
+      }
+
+      if (userMsg === '/continue') {
+        const spin = spinner('Fetching chats…');
+        const res = await listChats(creds.accessToken);
+        spin.stop();
+        const chats = res.data;
+        if (chats && chats.length > 0) {
+          const selected = await select({
+            message: 'Select a chat to continue:',
+            choices: chats.map((c) => ({
+              name: `${(c.chatId).slice(0, 12)}…  ${c.name ?? '(untitled)'}`,
+              value: c.chatId,
+            })),
+          });
+          chatId = selected;
+          info(`Continuing chat ${chalk.dim(`(session:${chatId.slice(0, 8)})`)}`);
+        } else {
+          info('No existing chats found.');
+        }
+        continue;
+      }
+
+      if (userMsg === '/list') {
+        const spin = spinner('Fetching chats…');
+        const res = await listChats(creds.accessToken);
+        spin.stop();
+        const chats = res.data;
+        if (chats && chats.length > 0) {
+          console.log('');
+          for (const c of chats) {
+            const id = chalk.dim(c.chatId.slice(0, 8));
+            const name = c.name ?? chalk.dim('(untitled)');
+            const time = c.updatedAt ? chalk.dim(` ${c.updatedAt}`) : '';
+            console.log(`  ${id}  ${name}${time}`);
+          }
+          console.log('');
+        } else {
+          info('No chats yet.');
+        }
+        continue;
+      }
+
       if (userMsg === '/help') {
-        console.log(chalk.dim('  /new  — New conversation\n  /id   — Show chat ID\n  exit  — Quit'));
+        console.log('');
+        console.log(chalk.bold('  Commands:'));
+        console.log(chalk.dim('  /new        ') + 'Start a new conversation');
+        console.log(chalk.dim('  /continue   ') + 'Continue an existing conversation');
+        console.log(chalk.dim('  /list       ') + 'List all historical chats');
+        console.log(chalk.dim('  /id         ') + 'Show current chat ID');
+        console.log(chalk.dim('  exit        ') + 'Quit the chat');
+        console.log('');
         continue;
       }
       await sendAndPrintWithPause(userMsg);

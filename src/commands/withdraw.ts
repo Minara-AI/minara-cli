@@ -3,14 +3,14 @@ import { input, confirm } from '@inquirer/prompts';
 import chalk from 'chalk';
 import { transfer, getAssets } from '../api/crosschain.js';
 import { requireAuth } from '../config.js';
-import { success, warn, spinner, assertApiOk, selectChain, wrapAction } from '../utils.js';
+import { success, warn, spinner, assertApiOk, selectChain, wrapAction, requireTransactionConfirmation, lookupToken, formatTokenLabel } from '../utils.js';
 import { requireTouchId } from '../touchid.js';
 import { printTxResult } from '../formatters.js';
 
 export const withdrawCommand = new Command('withdraw')
   .description('Withdraw tokens from your Minara wallet to an external address')
   .option('-c, --chain <chain>', 'Blockchain network')
-  .option('-t, --token <address>', 'Token contract address')
+  .option('-t, --token <address|ticker>', 'Token contract address or ticker symbol')
   .option('-a, --amount <amount>', 'Amount to withdraw')
   .option('--to <address>', 'Destination address')
   .option('-y, --yes', 'Skip confirmation')
@@ -46,10 +46,11 @@ export const withdrawCommand = new Command('withdraw')
     const chain = opts.chain ?? await selectChain('Withdraw on which blockchain?');
 
     // ── 3. Token ─────────────────────────────────────────────────────────
-    const tokenAddress: string = opts.token ?? await input({
-      message: `Token contract address on ${chalk.cyan(chain)}:\n  (native gas token = ${'0x' + '0'.repeat(40)})\n  Address:`,
-      validate: (v) => (v.length > 0 ? true : 'Token address is required'),
+    const tokenInput: string = opts.token ?? await input({
+      message: `Token on ${chalk.cyan(chain)} (address or ticker, native = ${'0x' + '0'.repeat(40)}):`,
+      validate: (v) => (v.length > 0 ? true : 'Token is required'),
     });
+    const tokenInfo = await lookupToken(tokenInput);
 
     // ── 4. Amount ────────────────────────────────────────────────────────
     const amount: string = opts.amount ?? await input({
@@ -66,11 +67,12 @@ export const withdrawCommand = new Command('withdraw')
       validate: (v) => (v.length > 5 ? true : 'Enter a valid address'),
     });
 
-    // ── 6. Summary & double-confirm ──────────────────────────────────────
+    // ── 6. Summary ───────────────────────────────────────────────────────
     console.log('');
     console.log(chalk.bold.red('⚠  Withdrawal Summary'));
     console.log(`  Chain       : ${chalk.cyan(chain)}`);
-    console.log(`  Token       : ${chalk.yellow(tokenAddress)}`);
+    console.log(`  Token       : ${formatTokenLabel(tokenInfo)}`);
+    console.log(`  Address     : ${chalk.yellow(tokenInfo.address)}`);
     console.log(`  Amount      : ${chalk.bold(amount)}`);
     console.log(`  Destination : ${chalk.yellow(recipient)}`);
     console.log('');
@@ -89,12 +91,13 @@ export const withdrawCommand = new Command('withdraw')
       }
     }
 
-    // ── 7. Touch ID ──────────────────────────────────────────────────────
+    // ── 7. Transaction confirmation & Touch ID ────────────────────────────
+    await requireTransactionConfirmation(`Withdraw ${amount} tokens → ${recipient} · ${chain}`, tokenInfo);
     await requireTouchId();
 
     // ── 8. Execute ───────────────────────────────────────────────────────
     const spin = spinner('Processing withdrawal…');
-    const res = await transfer(creds.accessToken, { chain, tokenAddress, tokenAmount: amount, recipient });
+    const res = await transfer(creds.accessToken, { chain, tokenAddress: tokenInfo.address, tokenAmount: amount, recipient });
     spin.stop();
 
     assertApiOk(res, 'Withdrawal failed');

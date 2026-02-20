@@ -57,10 +57,12 @@ export function requireAuth(): Credentials {
 export interface AppConfig {
   baseUrl: string;
   touchId?: boolean;
+  confirmBeforeTransaction?: boolean;
 }
 
 const DEFAULT_CONFIG: AppConfig = {
   baseUrl: 'https://api.minara.ai',
+  confirmBeforeTransaction: true,
 };
 
 export function loadConfig(): AppConfig {

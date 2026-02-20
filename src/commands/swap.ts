@@ -3,7 +3,7 @@ import { input, select, confirm } from '@inquirer/prompts';
 import chalk from 'chalk';
 import { swap, swapsSimulate } from '../api/crosschain.js';
 import { requireAuth } from '../config.js';
-import { success, info, spinner, formatOrderSide, assertApiOk, selectChain, wrapAction } from '../utils.js';
+import { success, info, spinner, formatOrderSide, assertApiOk, selectChain, wrapAction, requireTransactionConfirmation, lookupToken, formatTokenLabel } from '../utils.js';
 import { requireTouchId } from '../touchid.js';
 import { printTxResult, printKV } from '../formatters.js';
 import type { SwapSide } from '../types.js';
@@ -12,7 +12,7 @@ export const swapCommand = new Command('swap')
   .description('Swap tokens (cross-chain spot trading)')
   .option('-c, --chain <chain>', 'Blockchain (e.g. solana, base, ethereum)')
   .option('-s, --side <side>', 'buy or sell')
-  .option('-t, --token <address>', 'Token contract address')
+  .option('-t, --token <address|ticker>', 'Token contract address or ticker symbol')
   .option('-a, --amount <amount>', 'USD amount (buy) or token amount (sell)')
   .option('-y, --yes', 'Skip confirmation')
   .option('--dry-run', 'Simulate without executing')
@@ -34,11 +34,12 @@ export const swapCommand = new Command('swap')
       });
     }
 
-    // ── 3. Token address ─────────────────────────────────────────────────
-    const tokenAddress: string = opts.token ?? await input({
-      message: 'Token contract address:',
-      validate: (v) => (v.length > 5 ? true : 'Please enter a valid address'),
+    // ── 3. Token ───────────────────────────────────────────────────────────
+    const tokenInput: string = opts.token ?? await input({
+      message: 'Token (contract address or ticker):',
+      validate: (v) => (v.length > 0 ? true : 'Please enter a token address or ticker'),
     });
+    const tokenInfo = await lookupToken(tokenInput);
 
     // ── 4. Amount ────────────────────────────────────────────────────────
     const amountLabel = side === 'buy' ? 'USD amount to spend' : 'Token amount to sell';
@@ -55,7 +56,8 @@ export const swapCommand = new Command('swap')
     console.log(chalk.bold('Swap Summary:'));
     console.log(`  Chain   : ${chalk.cyan(chain)}`);
     console.log(`  Action  : ${formatOrderSide(side)}`);
-    console.log(`  Token   : ${chalk.yellow(tokenAddress)}`);
+    console.log(`  Token   : ${formatTokenLabel(tokenInfo)}`);
+    console.log(`  Address : ${chalk.yellow(tokenInfo.address)}`);
     console.log(`  Amount  : ${chalk.bold(amount)} ${side === 'buy' ? 'USD' : '(token)'}`);
     console.log('');
 
@@ -64,7 +66,7 @@ export const swapCommand = new Command('swap')
       info('Simulating swap (dry-run)…');
       const spin = spinner('Simulating…');
       const simRes = await swapsSimulate(creds.accessToken, [{
-        chain, side, tokenAddress, buyUsdAmountOrSellTokenAmount: amount,
+        chain, side, tokenAddress: tokenInfo.address, buyUsdAmountOrSellTokenAmount: amount,
       }]);
       spin.stop();
       assertApiOk(simRes, 'Simulation failed');
@@ -93,13 +95,14 @@ export const swapCommand = new Command('swap')
       }
     }
 
-    // ── 8. Touch ID ──────────────────────────────────────────────────────
+    // ── 8. Transaction confirmation & Touch ID ────────────────────────────
+    await requireTransactionConfirmation(`${side.toUpperCase()} swap · ${amount} ${side === 'buy' ? 'USD' : 'tokens'} · ${chain}`, tokenInfo);
     await requireTouchId();
 
     // ── 9. Execute ───────────────────────────────────────────────────────
     const spin = spinner('Executing swap…');
     const res = await swap(creds.accessToken, {
-      chain, side, tokenAddress, buyUsdAmountOrSellTokenAmount: amount,
+      chain, side, tokenAddress: tokenInfo.address, buyUsdAmountOrSellTokenAmount: amount,
     });
     spin.stop();
 

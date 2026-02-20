@@ -3,14 +3,14 @@ import { input, confirm } from '@inquirer/prompts';
 import chalk from 'chalk';
 import { transfer } from '../api/crosschain.js';
 import { requireAuth } from '../config.js';
-import { success, warn, spinner, assertApiOk, selectChain, wrapAction } from '../utils.js';
+import { success, warn, spinner, assertApiOk, selectChain, wrapAction, requireTransactionConfirmation, lookupToken, formatTokenLabel } from '../utils.js';
 import { requireTouchId } from '../touchid.js';
 import { printTxResult } from '../formatters.js';
 
 export const transferCommand = new Command('transfer')
   .description('Transfer tokens to another address')
   .option('-c, --chain <chain>', 'Blockchain')
-  .option('-t, --token <address>', 'Token contract address')
+  .option('-t, --token <address|ticker>', 'Token contract address or ticker symbol')
   .option('-a, --amount <amount>', 'Token amount to send')
   .option('--to <address>', 'Recipient address')
   .option('-y, --yes', 'Skip confirmation')
@@ -21,10 +21,11 @@ export const transferCommand = new Command('transfer')
     const chain = opts.chain ?? await selectChain();
 
     // ── 2. Token ─────────────────────────────────────────────────────────
-    const tokenAddress: string = opts.token ?? await input({
-      message: 'Token contract address (native token = 0x0…0):',
-      validate: (v) => (v.length > 0 ? true : 'Address is required'),
+    const tokenInput: string = opts.token ?? await input({
+      message: 'Token (address or ticker, native = 0x0…0):',
+      validate: (v) => (v.length > 0 ? true : 'Token is required'),
     });
+    const tokenInfo = await lookupToken(tokenInput);
 
     // ── 3. Amount ────────────────────────────────────────────────────────
     const amount: string = opts.amount ?? await input({
@@ -41,11 +42,12 @@ export const transferCommand = new Command('transfer')
       validate: (v) => (v.length > 5 ? true : 'Enter a valid address'),
     });
 
-    // ── 5. Summary & confirm ─────────────────────────────────────────────
+    // ── 5. Summary ───────────────────────────────────────────────────────
     console.log('');
     console.log(chalk.bold.red('⚠  Transfer Summary:'));
     console.log(`  Chain     : ${chalk.cyan(chain)}`);
-    console.log(`  Token     : ${chalk.yellow(tokenAddress)}`);
+    console.log(`  Token     : ${formatTokenLabel(tokenInfo)}`);
+    console.log(`  Address   : ${chalk.yellow(tokenInfo.address)}`);
     console.log(`  Amount    : ${chalk.bold(amount)}`);
     console.log(`  To        : ${chalk.yellow(recipient)}`);
     console.log('');
@@ -59,12 +61,13 @@ export const transferCommand = new Command('transfer')
       }
     }
 
-    // ── 6. Touch ID ──────────────────────────────────────────────────────
+    // ── 6. Transaction confirmation & Touch ID ────────────────────────────
+    await requireTransactionConfirmation(`Transfer ${amount} tokens → ${recipient} · ${chain}`, tokenInfo);
     await requireTouchId();
 
     // ── 7. Execute ───────────────────────────────────────────────────────
     const spin = spinner('Processing transfer…');
-    const res = await transfer(creds.accessToken, { chain, tokenAddress, tokenAmount: amount, recipient });
+    const res = await transfer(creds.accessToken, { chain, tokenAddress: tokenInfo.address, tokenAmount: amount, recipient });
     spin.stop();
 
     assertApiOk(res, 'Transfer failed');
