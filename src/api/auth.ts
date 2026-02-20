@@ -1,5 +1,13 @@
 import { get, post, del } from './client.js';
-import type { EmailCodeDto, EmailVerifyDto, AuthUser, FavoriteTokensPayload, OAuthProvider } from '../types.js';
+import type {
+  EmailCodeDto,
+  EmailVerifyDto,
+  AuthUser,
+  FavoriteTokensPayload,
+  OAuthProvider,
+  DeviceAuthStartResponse,
+  DeviceAuthStatusResponse,
+} from '../types.js';
 
 /** Send email verification code */
 export function sendEmailCode(dto: EmailCodeDto) {
@@ -54,4 +62,18 @@ export function addFavoriteTokens(token: string, payload: FavoriteTokensPayload)
 /** Get invite history */
 export function getInviteHistory(token: string) {
   return get<Record<string, unknown>[]>('/auth/invite-history', { token });
+}
+
+// ─── Device Authorization Flow (RFC 8628) ─────────────────────────────────
+
+/** Start device authorization flow */
+export function startDeviceAuth() {
+  return post<DeviceAuthStartResponse>('/auth/device/start');
+}
+
+/** Poll device authorization status */
+export function getDeviceAuthStatus(deviceCode: string) {
+  return post<DeviceAuthStatusResponse>('/auth/device/status', {
+    body: { device_code: deviceCode },
+  });
 }

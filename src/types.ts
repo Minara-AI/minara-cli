@@ -50,6 +50,22 @@ export interface AuthUser {
   mfaSettings?: Record<string, unknown>;
 }
 
+// ─── Device Authorization Flow (RFC 8628) ─────────────────────────────────
+
+export interface DeviceAuthStartResponse {
+  device_code: string;
+  user_code: string;
+  verification_url: string;
+  expires_in: number;
+  interval: number;
+}
+
+export interface DeviceAuthStatusResponse {
+  status: 'pending' | 'completed' | 'expired';
+  access_token?: string;
+  user?: AuthUser;
+}
+
 export interface FavoriteTokensPayload {
   tokens: string[];
 }

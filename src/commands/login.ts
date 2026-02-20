@@ -1,7 +1,14 @@
 import { Command } from 'commander';
 import { input, select, confirm } from '@inquirer/prompts';
 import chalk from 'chalk';
-import { sendEmailCode, verifyEmailCode, getOAuthUrl, getCurrentUser } from '../api/auth.js';
+import {
+  sendEmailCode,
+  verifyEmailCode,
+  getOAuthUrl,
+  getCurrentUser,
+  startDeviceAuth,
+  getDeviceAuthStatus,
+} from '../api/auth.js';
 import { saveCredentials, loadCredentials } from '../config.js';
 import { success, error, info, warn, spinner, openBrowser, unwrapApi, wrapAction } from '../utils.js';
 import { startOAuthServer } from '../oauth-server.js';
@@ -9,7 +16,7 @@ import { OAUTH_PROVIDERS, type OAuthProvider } from '../types.js';
 
 // ─── Login method type ────────────────────────────────────────────────────
 
-type LoginMethod = 'email' | OAuthProvider;
+type LoginMethod = 'email' | 'device' | OAuthProvider;
 
 // ─── Email login flow ─────────────────────────────────────────────────────
 
@@ -135,6 +142,80 @@ async function loginWithOAuth(provider: OAuthProvider): Promise<void> {
   if (result.email) console.log(chalk.dim(`  ${result.email}`));
 }
 
+// ─── Device login flow (RFC 8628) ─────────────────────────────────────────
+
+async function loginWithDevice(): Promise<void> {
+  info('Starting device login...');
+
+  const spin = spinner('Requesting device code...');
+  const startRes = await startDeviceAuth();
+  spin.stop();
+
+  if (!startRes.success || !startRes.data) {
+    error(startRes.error?.message ?? 'Failed to start device login');
+    process.exit(1);
+  }
+
+  const { device_code, user_code, verification_url, expires_in, interval } = startRes.data;
+
+  console.log('');
+  console.log(chalk.bold('To complete login:'));
+  console.log('');
+  console.log(`  1. Visit: ${chalk.cyan(verification_url)}`);
+  console.log(`  2. Enter code: ${chalk.bold.yellow(user_code)}`);
+  console.log('');
+  info(`Waiting for authentication (expires in ${Math.floor(expires_in / 60)} minutes)...`);
+  info(chalk.dim('(Press Ctrl+C to cancel)'));
+  console.log('');
+
+  // Try to open browser
+  openBrowser(`${verification_url}?user_code=${user_code}`);
+
+  // Poll for completion
+  const startTime = Date.now();
+  const expiresAt = startTime + expires_in * 1000;
+  let pollInterval = interval * 1000;
+
+  while (Date.now() < expiresAt) {
+    await new Promise((r) => setTimeout(r, pollInterval));
+
+    const statusRes = await getDeviceAuthStatus(device_code);
+
+    if (!statusRes.success || !statusRes.data) {
+      // Network error, keep polling
+      continue;
+    }
+
+    const data = statusRes.data;
+    const { status, access_token, user } = data;
+
+    if (status === 'expired') {
+      error('Device login expired. Please try again.');
+      process.exit(1);
+    }
+
+    if (status === 'completed' && access_token && user) {
+      saveCredentials({
+        accessToken: access_token,
+        userId: user.id,
+        email: user.email,
+        displayName: user.displayName,
+      });
+
+      success('Login successful! Credentials saved to ~/.minara/');
+      if (user.displayName) console.log(chalk.dim(`  Welcome, ${user.displayName}`));
+      if (user.email) console.log(chalk.dim(`  ${user.email}`));
+      return;
+    }
+
+    // Still pending, show progress
+    process.stdout.write('.');
+  }
+
+  error('Device login timed out. Please try again.');
+  process.exit(1);
+}
+
 // ─── Command ──────────────────────────────────────────────────────────────
 
 export const loginCommand = new Command('login')
@@ -142,44 +223,48 @@ export const loginCommand = new Command('login')
   .option('-e, --email <email>', 'Login with email verification code')
   .option('--google', 'Login with Google')
   .option('--apple', 'Login with Apple ID')
-  .action(wrapAction(async (opts: {
-    email?: string;
-    google?: boolean;
-    apple?: boolean;
-  }) => {
-    // Warn if already logged in
-    const existing = loadCredentials();
-    if (existing?.accessToken) {
-      const overwrite = await confirm({
-        message: 'You are already logged in. Re-login?',
-        default: false,
-      });
-      if (!overwrite) return;
-    }
+  .option('--device', 'Login with device code (for headless environments)')
+  .action(
+    wrapAction(async (opts: { email?: string; google?: boolean; apple?: boolean; device?: boolean }) => {
+      // Warn if already logged in
+      const existing = loadCredentials();
+      if (existing?.accessToken) {
+        const overwrite = await confirm({
+          message: 'You are already logged in. Re-login?',
+          default: false,
+        });
+        if (!overwrite) return;
+      }
 
-    // ── Determine login method ────────────────────────────────────────
-    let method: LoginMethod;
-    if (opts.email) {
-      method = 'email';
-    } else if (opts.google) {
-      method = 'google';
-    } else if (opts.apple) {
-      method = 'apple';
-    } else {
-      method = await select({
-        message: 'How would you like to login?',
-        choices: [
-          { name: '📧 Email verification code', value: 'email' as LoginMethod },
-          { name: '🔵 Google',                  value: 'google' as LoginMethod },
-          { name: '🍎 Apple ID',                value: 'apple' as LoginMethod },
-        ],
-      });
-    }
+      // ── Determine login method ────────────────────────────────────────
+      let method: LoginMethod;
+      if (opts.email) {
+        method = 'email';
+      } else if (opts.google) {
+        method = 'google';
+      } else if (opts.apple) {
+        method = 'apple';
+      } else if (opts.device) {
+        method = 'device';
+      } else {
+        method = await select({
+          message: 'How would you like to login?',
+          choices: [
+            { name: 'Email verification code', value: 'email' as LoginMethod },
+            { name: 'Google', value: 'google' as LoginMethod },
+            { name: 'Apple ID', value: 'apple' as LoginMethod },
+            { name: 'Device code (for headless environments)', value: 'device' as LoginMethod },
+          ],
+        });
+      }
 
-    // ── Execute ───────────────────────────────────────────────────────
-    if (method === 'email') {
-      await loginWithEmail(opts.email);
-    } else {
-      await loginWithOAuth(method);
-    }
-  }));
+      // ── Execute ───────────────────────────────────────────────────────
+      if (method === 'email') {
+        await loginWithEmail(opts.email);
+      } else if (method === 'device') {
+        await loginWithDevice();
+      } else {
+        await loginWithOAuth(method);
+      }
+    }),
+  );

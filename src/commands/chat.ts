@@ -24,20 +24,53 @@ async function* parseSSE(response: Response): AsyncGenerator<string> {
       buffer = lines.pop() ?? '';
 
       for (const line of lines) {
-        if (!line.startsWith('data:')) continue;
-        const data = line.slice(5).trim();
-        if (data === '[DONE]') return;
-        try {
-          const parsed = JSON.parse(data);
-          const text = parsed?.choices?.[0]?.delta?.content
-            ?? parsed?.content
-            ?? parsed?.text
-            ?? parsed?.data?.text
-            ?? (typeof parsed === 'string' ? parsed : null);
-          if (text) yield text;
-        } catch {
-          // Non-JSON data line — might be raw text
-          if (data) yield data;
+        if (!line) continue;
+
+        // Handle AI SDK v5 streaming format: "type:value"
+        // e.g., "0:text", "1:reasoning", "9:tool_call"
+        const colonIndex = line.indexOf(':');
+        if (colonIndex !== -1) {
+          const type = line.slice(0, colonIndex);
+          const data = line.slice(colonIndex + 1);
+
+          // Type 0 is text content
+          if (type === '0' && data) {
+            try {
+              // Data might be JSON-encoded string like "text" or actual JSON
+              const parsed = JSON.parse(data);
+              if (typeof parsed === 'string') {
+                yield parsed;
+              } else if (parsed.text) {
+                yield parsed.text;
+              } else if (parsed.content) {
+                yield parsed.content;
+              }
+            } catch {
+              // If parsing fails, treat as raw text
+              yield data;
+            }
+          }
+          // Type 1 is reasoning (can be skipped or shown differently)
+          // Type 9 is tool_call (can be skipped for now)
+          continue;
+        }
+
+        // Handle standard SSE format: "data:json"
+        if (line.startsWith('data:')) {
+          const data = line.slice(5).trim();
+          if (data === '[DONE]') return;
+          try {
+            const parsed = JSON.parse(data);
+            const text = parsed?.choices?.[0]?.delta?.content
+              ?? parsed?.content
+              ?? parsed?.text
+              ?? parsed?.data?.text
+              ?? (typeof parsed === 'string' ? parsed : null);
+            if (text) yield text;
+          } catch {
+            // Non-JSON data line — might be raw text
+            if (data) yield data;
+          }
         }
       }
     }
@@ -138,8 +171,33 @@ export const chatCommand = new Command('chat')
         error(`API error ${response.status}: ${body}`);
         return;
       }
-      for await (const chunk of parseSSE(response)) {
-        process.stdout.write(chunk);
+
+      // Debug: Check if response body exists
+      if (!response.body) {
+        console.log(chalk.dim('(No response body)'));
+        return;
+      }
+
+      let hasContent = false;
+      try {
+        for await (const chunk of parseSSE(response)) {
+          if (chunk) {
+            process.stdout.write(chunk);
+            hasContent = true;
+          }
+        }
+      } catch (err) {
+        // Ignore cancellation errors
+        if (err && typeof err === 'object' && 'name' in err && err.name === 'AbortError') {
+          return;
+        }
+        if (process.env.DEBUG) {
+          console.log(chalk.dim(`\n[Stream error: ${err}]`));
+        }
+      }
+
+      if (!hasContent) {
+        console.log(chalk.dim('(No response content)'));
       }
       console.log('\n');
     }
@@ -156,6 +214,18 @@ export const chatCommand = new Command('chat')
     console.log('');
 
     const rl = createInterface({ input: process.stdin, output: process.stdout });
+
+    // Fix: Pause readline before streaming response to prevent prompt interference
+    async function sendAndPrintWithPause(msg: string) {
+      rl.pause(); // Pause readline to prevent prompt interference
+      try {
+        await sendAndPrint(msg);
+      } finally {
+        rl.resume(); // Resume readline after streaming is complete
+        process.stdout.write('\n'); // Ensure clean line before next prompt
+      }
+    }
+
     const prompt = (): Promise<string> => new Promise((resolve) => {
       rl.question(chalk.blue('You: '), resolve);
     });
@@ -173,6 +243,6 @@ export const chatCommand = new Command('chat')
         console.log(chalk.dim('  /new  — New conversation\n  /id   — Show chat ID\n  exit  — Quit'));
         continue;
       }
-      await sendAndPrint(userMsg);
+      await sendAndPrintWithPause(userMsg);
     }
   }));
