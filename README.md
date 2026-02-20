@@ -18,20 +18,10 @@
 
 ## Features
 
-- **Multi-method Login** — Email verification code, Google OAuth, or Apple ID
-- **Interactive AI Chat** — Python/Node.js-style REPL with streaming responses, or single-shot mode
-- **Smart Token Input** — Enter `$BONK` (ticker), token name, or contract address; auto-lookup with disambiguation
-- **Transaction Safety** — Mandatory second confirmation before all fund operations (configurable), plus optional Touch ID
-- **Touch ID Protection** — Biometric fingerprint verification for all fund operations (macOS)
-- **Deposit & Withdraw** — View deposit addresses across chains, withdraw to external wallets
-- **Asset Management** — View wallet balances across all supported chains
-- **Spot Trading** — Cross-chain token swaps with dry-run simulation
-- **Perpetual Futures** — Deposit, withdraw, place/cancel orders, manage leverage (Hyperliquid)
-- **Limit Orders** — Create, list, and cancel price-triggered orders
-- **Copy Trading** — Follow wallet addresses with configurable bots
-- **Market Discovery** — Trending tokens, Fear & Greed Index, Bitcoin metrics
-- **Premium Subscription** — View plans, subscribe via Stripe or Crypto, buy credit packages
-- **Rich CLI Output** — Formatted tables, colored values, and smart number display; use `--json` for raw JSON
+- **AI Chat** — Interactive REPL (Python/Node.js-style) with streaming responses, thinking mode, and deep-research mode; also supports single-shot queries
+- **Wallet** — View balances across all chains, deposit addresses, and withdraw to external wallets
+- **Trading** — Cross-chain swaps, perpetual futures, limit orders, and copy trading; enter `$BONK` (ticker), token name, or contract address with auto-lookup and disambiguation
+- **Market Discovery** — Trending tokens, search, Fear & Greed Index, and on-chain metrics (BTC / ETH / SOL)
 
 ## Installation
 
@@ -178,13 +168,13 @@ minara copy-trade stop abc123      # Pause a running bot
 
 ### AI Chat
 
-| Command                          | Description                                    |
-| -------------------------------- | ---------------------------------------------- |
-| `minara chat`                    | Enter interactive REPL (Python/Node.js-style)  |
-| `minara chat [message]`          | Send a single message and exit                 |
-| `minara chat --list`             | List all your conversations                    |
-| `minara chat --history <chatId>` | View messages in a conversation                |
-| `minara chat -c <chatId>`       | Continue an existing conversation              |
+| Command                          | Description                                   |
+| -------------------------------- | --------------------------------------------- |
+| `minara chat`                    | Enter interactive REPL (Python/Node.js-style) |
+| `minara chat [message]`          | Send a single message and exit                |
+| `minara chat --list`             | List all your conversations                   |
+| `minara chat --history <chatId>` | View messages in a conversation               |
+| `minara chat -c <chatId>`        | Continue an existing conversation             |
 
 ```bash
 minara chat                                    # Enter interactive REPL mode
@@ -262,8 +252,8 @@ minara assets spot --json          # Raw JSON asset list
 
 ### Configuration
 
-| Command         | Description                                                             |
-| --------------- | ----------------------------------------------------------------------- |
+| Command         | Description                                                            |
+| --------------- | ---------------------------------------------------------------------- |
 | `minara config` | View or update CLI settings (base URL, Touch ID, transaction confirm…) |
 
 ```bash
@@ -272,11 +262,11 @@ minara config                     # Interactive settings menu
 
 Available settings:
 
-| Setting                    | Default | Description                                           |
-| -------------------------- | ------- | ----------------------------------------------------- |
-| Base URL                   | —       | API endpoint                                          |
-| Touch ID                   | Off     | Biometric verification for fund operations (macOS)    |
-| Transaction Confirmation   | **On**  | Mandatory second confirmation before fund operations  |
+| Setting                  | Default | Description                                          |
+| ------------------------ | ------- | ---------------------------------------------------- |
+| Base URL                 | —       | API endpoint                                         |
+| Touch ID                 | Off     | Biometric verification for fund operations (macOS)   |
+| Transaction Confirmation | **On**  | Mandatory second confirmation before fund operations |
 
 ### Transaction Safety
 
