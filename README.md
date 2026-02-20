@@ -19,10 +19,12 @@
 ## Features
 
 - **Multi-method Login** — Email verification code, Google OAuth, or Apple ID
+- **Interactive AI Chat** — Python/Node.js-style REPL with streaming responses, or single-shot mode
+- **Smart Token Input** — Enter `$BONK` (ticker), token name, or contract address; auto-lookup with disambiguation
+- **Transaction Safety** — Mandatory second confirmation before all fund operations (configurable), plus optional Touch ID
 - **Touch ID Protection** — Biometric fingerprint verification for all fund operations (macOS)
 - **Deposit & Withdraw** — View deposit addresses across chains, withdraw to external wallets
 - **Asset Management** — View wallet balances across all supported chains
-- **AI Chat** — Stream conversations with Minara AI, with thinking and deep-research modes
 - **Spot Trading** — Cross-chain token swaps with dry-run simulation
 - **Perpetual Futures** — Deposit, withdraw, place/cancel orders, manage leverage (Hyperliquid)
 - **Limit Orders** — Create, list, and cancel price-triggered orders
@@ -57,11 +59,14 @@ minara account
 # View deposit addresses
 minara deposit
 
-# Chat with Minara AI
+# Chat with Minara AI (interactive REPL)
+minara chat
+
+# Or send a single question
 minara chat "What's the best DeFi yield right now?"
 
-# Swap tokens
-minara swap
+# Swap tokens (accepts ticker or address)
+minara swap -c solana -t '$BONK' -s buy -a 100
 
 # View trending tokens
 minara discover trending
@@ -99,8 +104,8 @@ minara assets                     # Interactive: Spot / Perps / Both
 minara assets spot                # Spot wallet across all chains
 minara assets perps               # Perps account balance + positions
 minara deposit
-minara withdraw -c solana -t <token> -a 10 --to <address>
-minara withdraw                   # Interactive mode
+minara withdraw -c solana -t '$SOL' -a 10 --to <address>
+minara withdraw                   # Interactive mode (accepts ticker or address)
 ```
 
 ### Spot Trading
@@ -112,9 +117,12 @@ minara withdraw                   # Interactive mode
 
 ```bash
 minara swap                        # Interactive
-minara swap -c solana -s buy -t <token> -a 100
+minara swap -c solana -s buy -t '$BONK' -a 100   # By ticker
+minara swap -c solana -s buy -t <address> -a 100  # By contract address
 minara swap --dry-run              # Simulate without executing
 ```
+
+> **Token input:** All token fields (`-t`) accept a `$TICKER` (e.g. `$BONK`), a token name, or a contract address. When multiple tokens match, you'll be prompted to select the correct one with full contract addresses displayed.
 
 ### Perpetual Futures
 
@@ -170,19 +178,42 @@ minara copy-trade stop abc123      # Pause a running bot
 
 ### AI Chat
 
-| Command                          | Description                                |
-| -------------------------------- | ------------------------------------------ |
-| `minara chat [message]`          | Send a message (or enter interactive mode) |
-| `minara chat --list`             | List all your conversations                |
-| `minara chat --history <chatId>` | View messages in a conversation            |
+| Command                          | Description                                    |
+| -------------------------------- | ---------------------------------------------- |
+| `minara chat`                    | Enter interactive REPL (Python/Node.js-style)  |
+| `minara chat [message]`          | Send a single message and exit                 |
+| `minara chat --list`             | List all your conversations                    |
+| `minara chat --history <chatId>` | View messages in a conversation                |
+| `minara chat -c <chatId>`       | Continue an existing conversation              |
 
 ```bash
-minara chat "What is the current BTC price?"   # Single question, streamed answer
 minara chat                                    # Enter interactive REPL mode
+minara chat "What is the current BTC price?"   # Single question, streamed answer
 minara chat --thinking "Analyze ETH outlook"   # Enable reasoning mode
 minara chat --deep-research "DeFi yield trends"# Deep research mode
+minara chat -c <chatId>                        # Continue a specific chat in REPL
 minara chat --list                             # List past conversations
 minara chat --history <chatId>                 # Replay a specific conversation
+```
+
+**Interactive REPL mode** — When launched without a message argument, the chat enters an interactive session:
+
+```
+Minara AI Chat session:a1b2c3d4
+──────────────────────────────────────────────────
+Type a message to chat. /help for commands, Ctrl+C to exit.
+
+>>> What's the price of BTC?
+Minara: Bitcoin is currently trading at $95,432...
+
+>>> /help
+
+  Commands:
+  /new        Start a new conversation
+  /continue   Continue an existing conversation
+  /list       List all historical chats
+  /id         Show current chat ID
+  exit        Quit the chat
 ```
 
 ### Market Discovery
@@ -203,13 +234,13 @@ minara discover btc-metrics        # Bitcoin hashrate, supply, dominance, etc.
 
 ### Premium & Subscription
 
-| Command                    | Description                                    |
-| -------------------------- | ---------------------------------------------- |
-| `minara premium plans`     | View all subscription plans and credit packages |
-| `minara premium status`    | View your current subscription status          |
-| `minara premium subscribe` | Subscribe or change plan (upgrade / downgrade) |
-| `minara premium buy-credits` | Buy a one-time credit package                |
-| `minara premium cancel`    | Cancel your current subscription               |
+| Command                      | Description                                     |
+| ---------------------------- | ----------------------------------------------- |
+| `minara premium plans`       | View all subscription plans and credit packages |
+| `minara premium status`      | View your current subscription status           |
+| `minara premium subscribe`   | Subscribe or change plan (upgrade / downgrade)  |
+| `minara premium buy-credits` | Buy a one-time credit package                   |
+| `minara premium cancel`      | Cancel your current subscription                |
 
 ```bash
 minara premium plans              # Compare Free, Lite, Starter, Pro, Partner plans
@@ -231,22 +262,56 @@ minara assets spot --json          # Raw JSON asset list
 
 ### Configuration
 
-| Command         | Description                                            |
-| --------------- | ------------------------------------------------------ |
-| `minara config` | View or update CLI settings (base URL, Touch ID, etc.) |
+| Command         | Description                                                             |
+| --------------- | ----------------------------------------------------------------------- |
+| `minara config` | View or update CLI settings (base URL, Touch ID, transaction confirm…) |
+
+```bash
+minara config                     # Interactive settings menu
+```
+
+Available settings:
+
+| Setting                    | Default | Description                                           |
+| -------------------------- | ------- | ----------------------------------------------------- |
+| Base URL                   | —       | API endpoint                                          |
+| Touch ID                   | Off     | Biometric verification for fund operations (macOS)    |
+| Transaction Confirmation   | **On**  | Mandatory second confirmation before fund operations  |
+
+### Transaction Safety
+
+All fund-related operations go through a multi-layer safety flow:
+
+```
+1. First confirmation      (skippable with -y flag)
+2. Transaction confirmation (mandatory — configurable in minara config)
+3. Touch ID verification   (optional — macOS only)
+4. Execute
+```
+
+The **transaction confirmation** shows the token ticker, name, full contract address, and operation details before asking for final approval:
+
+```
+⚠ Transaction confirmation
+  Token    : $BONK — Bonk
+  Address  : DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263
+  Action   : BUY swap · 100 USD · solana
+? Are you sure you want to proceed? (y/N)
+```
+
+This step is independent of the `-y` flag and Touch ID — it serves as an extra safety net. Disable it via `minara config` if not needed.
 
 ### Touch ID (macOS)
 
 Minara CLI supports macOS Touch ID to protect all fund-related operations. When enabled, transfers, withdrawals, swaps, orders, and other financial actions require fingerprint verification before execution.
 
 ```bash
-# You'll be prompted to enable Touch ID after login, or toggle manually:
 minara config                     # Select "Touch ID" to enable / disable
 ```
 
 **Protected operations:** `withdraw`, `transfer`, `swap`, `perps deposit`, `perps withdraw`, `perps order`, `limit-order create`, `copy-trade create`
 
-> **Note:** Touch ID requires macOS with Touch ID hardware. The `--yes` flag skips confirmation prompts but does **not** bypass Touch ID — biometric verification is always enforced when enabled.
+> **Note:** Touch ID requires macOS with Touch ID hardware. The `--yes` flag skips the initial confirmation prompt but does **not** bypass transaction confirmation or Touch ID.
 
 ## Supported Chains
 
@@ -284,7 +349,9 @@ npm run test:coverage   # With coverage report
 
 ## Security
 
+- **Transaction Confirmation** — Mandatory second confirmation before all fund operations, showing full token details and contract addresses (default: enabled, configurable)
 - **Touch ID** — Optional biometric protection for all fund operations (macOS only). A native Swift helper binary is compiled on first use and cached in `~/.minara/`
+- **Token Verification** — Token ticker, name, and full contract address are always displayed before any transaction to prevent wrong-token mistakes
 - Credentials are stored in `~/.minara/credentials.json` with `0600` file permissions
 - The `~/.minara/` directory is created with `0700` permissions
 - Tokens are never logged or printed to the console
