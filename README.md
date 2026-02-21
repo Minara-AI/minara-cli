@@ -40,7 +40,7 @@ npx minara --help
 ## Quick Start
 
 ```bash
-# Login (interactive — choose email, Google, or Apple)
+# Login (interactive — device code or email)
 minara login
 
 # Check your account
@@ -68,15 +68,14 @@ minara discover trending
 
 | Command          | Description                                 |
 | ---------------- | ------------------------------------------- |
-| `minara login`   | Login via email, Google, or Apple ID        |
+| `minara login`   | Login via device code or email               |
 | `minara logout`  | Logout and clear local credentials          |
 | `minara account` | View your account info and wallet addresses |
 
 ```bash
-minara login                  # Interactive method selection
+minara login                  # Interactive: device code (default) or email
+minara login --device         # Device code (opens browser to verify)
 minara login -e user@mail.com # Email verification code
-minara login --google         # Google OAuth (opens browser)
-minara login --apple          # Apple ID (opens browser)
 ```
 
 ### Wallet & Funds

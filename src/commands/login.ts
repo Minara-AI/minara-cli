@@ -4,20 +4,16 @@ import chalk from 'chalk';
 import {
   sendEmailCode,
   verifyEmailCode,
-  getOAuthUrl,
-  getCurrentUser,
   startDeviceAuth,
   getDeviceAuthStatus,
 } from '../api/auth.js';
 import { saveCredentials, loadCredentials, loadConfig, saveConfig } from '../config.js';
-import { success, error, info, warn, spinner, openBrowser, unwrapApi, wrapAction } from '../utils.js';
-import { startOAuthServer } from '../oauth-server.js';
-import { OAUTH_PROVIDERS, type OAuthProvider } from '../types.js';
+import { success, error, info, spinner, openBrowser, unwrapApi, wrapAction } from '../utils.js';
 import { isTouchIdAvailable } from '../touchid.js';
 
 // ─── Login method type ────────────────────────────────────────────────────
 
-type LoginMethod = 'email' | 'device' | OAuthProvider;
+type LoginMethod = 'email' | 'device';
 
 // ─── Email login flow ─────────────────────────────────────────────────────
 
@@ -62,85 +58,6 @@ async function loginWithEmail(emailOpt?: string): Promise<void> {
   });
 
   success(`Welcome${user.displayName ? `, ${user.displayName}` : ''}! Credentials saved to ~/.minara/`);
-}
-
-// ─── OAuth login flow ──────────────────────────────────────────────────────
-
-async function loginWithOAuth(provider: OAuthProvider): Promise<void> {
-  const providerName = OAUTH_PROVIDERS.find((p) => p.value === provider)?.name ?? provider;
-  info(`Starting ${providerName} login…`);
-
-  const server = await startOAuthServer();
-
-  const spin = spinner(`Requesting ${providerName} authorization URL…`);
-  const urlRes = await getOAuthUrl(provider, server.callbackUrl);
-  spin.stop();
-
-  if (!urlRes.success || !urlRes.data?.url) {
-    server.close();
-    error(urlRes.error?.message
-      ? `${providerName} login is not available: ${urlRes.error.message}`
-      : `Failed to get ${providerName} authorization URL`);
-    process.exit(1);
-  }
-
-  const authUrl = urlRes.data.url;
-
-  console.log('');
-  console.log(chalk.bold(`Opening ${providerName} login in your browser…`));
-  console.log(chalk.dim(`If the browser doesn't open automatically, visit:`));
-  console.log(chalk.cyan(authUrl));
-  console.log('');
-  info('Waiting for you to complete authentication in the browser…');
-  info(chalk.dim('(Press Ctrl+C to cancel)'));
-  console.log('');
-
-  openBrowser(authUrl);
-
-  const result = await server.waitForCallback();
-
-  if (result.error) {
-    error(`Login failed: ${result.error}`);
-    process.exit(1);
-  }
-
-  if (!result.accessToken) {
-    warn('No access token found in the callback response.');
-    console.log(chalk.dim('Raw callback parameters:'));
-    for (const [k, v] of Object.entries(result.rawParams)) {
-      console.log(chalk.dim(`  ${k}: ${v}`));
-    }
-    error('Please check if the API returned the token in a different format.');
-    info('You can try logging in with email instead: minara login --email');
-    process.exit(1);
-  }
-
-  saveCredentials({
-    accessToken: result.accessToken,
-    userId: result.userId,
-    email: result.email,
-    displayName: result.displayName,
-  });
-
-  // Fetch full user info if only token was returned
-  if (!result.email && !result.displayName) {
-    const spin2 = spinner('Fetching account info…');
-    const meRes = await getCurrentUser(result.accessToken);
-    spin2.stop();
-
-    if (meRes.success && meRes.data) {
-      saveCredentials({
-        accessToken: result.accessToken,
-        userId: meRes.data.id,
-        email: meRes.data.email,
-        displayName: meRes.data.displayName,
-      });
-    }
-  }
-
-  success(`${providerName} login successful! Credentials saved to ~/.minara/`);
-  if (result.displayName) console.log(chalk.dim(`  Welcome, ${result.displayName}`));
-  if (result.email) console.log(chalk.dim(`  ${result.email}`));
 }
 
 // ─── Device login flow (RFC 8628) ─────────────────────────────────────────
@@ -222,11 +139,9 @@ async function loginWithDevice(): Promise<void> {
 export const loginCommand = new Command('login')
   .description('Login to your Minara account')
   .option('-e, --email <email>', 'Login with email verification code')
-  .option('--google', 'Login with Google')
-  .option('--apple', 'Login with Apple ID')
-  .option('--device', 'Login with device code (for headless environments)')
+  .option('--device', 'Login with device code (opens browser)')
   .action(
-    wrapAction(async (opts: { email?: string; google?: boolean; apple?: boolean; device?: boolean }) => {
+    wrapAction(async (opts: { email?: string; device?: boolean }) => {
       // Warn if already logged in
       const existing = loadCredentials();
       if (existing?.accessToken) {
@@ -241,20 +156,14 @@ export const loginCommand = new Command('login')
       let method: LoginMethod;
       if (opts.email) {
         method = 'email';
-      } else if (opts.google) {
-        method = 'google';
-      } else if (opts.apple) {
-        method = 'apple';
       } else if (opts.device) {
         method = 'device';
       } else {
         method = await select({
           message: 'How would you like to login?',
           choices: [
+            { name: 'Device code (opens browser to verify)', value: 'device' as LoginMethod },
             { name: 'Email verification code', value: 'email' as LoginMethod },
-            { name: 'Google', value: 'google' as LoginMethod },
-            { name: 'Apple ID', value: 'apple' as LoginMethod },
-            { name: 'Device code (for headless environments)', value: 'device' as LoginMethod },
           ],
         });
       }
@@ -262,10 +171,8 @@ export const loginCommand = new Command('login')
       // ── Execute ───────────────────────────────────────────────────────
       if (method === 'email') {
         await loginWithEmail(opts.email);
-      } else if (method === 'device') {
-        await loginWithDevice();
       } else {
-        await loginWithOAuth(method);
+        await loginWithDevice();
       }
 
       // ── Offer Touch ID setup (macOS only, if not already enabled) ────

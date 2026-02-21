@@ -12,22 +12,14 @@ vi.mock('../../src/config.js', () => ({
   loadCredentials: vi.fn().mockReturnValue(null),
   saveCredentials: vi.fn(),
   loadConfig: () => ({ baseUrl: 'https://api.minara.ai' }),
+  saveConfig: vi.fn(),
 }));
 
 vi.mock('../../src/api/auth.js', () => ({
   sendEmailCode: vi.fn().mockResolvedValue({ success: true }),
   verifyEmailCode: vi.fn().mockResolvedValue({ success: true, data: { id: 'u1', access_token: 'tok' } }),
-  getOAuthUrl: vi.fn().mockResolvedValue({ success: true, data: { url: 'https://oauth.example.com' } }),
-  getCurrentUser: vi.fn().mockResolvedValue({ success: true, data: { id: 'u1' } }),
-}));
-
-vi.mock('../../src/oauth-server.js', () => ({
-  startOAuthServer: vi.fn().mockResolvedValue({
-    port: 9999,
-    callbackUrl: 'http://localhost:9999/callback',
-    waitForCallback: vi.fn().mockResolvedValue({ accessToken: 'tok', rawParams: {} }),
-    close: vi.fn(),
-  }),
+  startDeviceAuth: vi.fn(),
+  getDeviceAuthStatus: vi.fn(),
 }));
 
 vi.mock('@inquirer/prompts', () => ({
@@ -49,11 +41,14 @@ vi.mock('../../src/utils.js', async () => {
   };
 });
 
+vi.mock('../../src/touchid.js', () => ({
+  isTouchIdAvailable: vi.fn().mockReturnValue(false),
+}));
+
 beforeEach(() => {
   vi.clearAllMocks();
   vi.resetModules();
 
-  // Re-suppress console after module reset
   vi.spyOn(console, 'log').mockImplementation(() => {});
   vi.spyOn(console, 'error').mockImplementation(() => {});
 });
@@ -76,7 +71,7 @@ describe('login command', () => {
       });
 
       const { input } = await import('@inquirer/prompts');
-      vi.mocked(input).mockResolvedValueOnce('123456'); // verification code
+      vi.mocked(input).mockResolvedValueOnce('123456');
 
       const { loginCommand } = await import('../../src/commands/login.js');
       await loginCommand.parseAsync(['-e', 'user@test.com'], { from: 'user' });
@@ -103,10 +98,10 @@ describe('login command', () => {
       vi.mocked(loadCredentials).mockReturnValue(null);
 
       const { select, input } = await import('@inquirer/prompts');
-      vi.mocked(select).mockResolvedValueOnce('email'); // method
+      vi.mocked(select).mockResolvedValueOnce('email');
       vi.mocked(input)
-        .mockResolvedValueOnce('me@test.com') // email
-        .mockResolvedValueOnce('654321');      // code
+        .mockResolvedValueOnce('me@test.com')
+        .mockResolvedValueOnce('654321');
 
       const { loginCommand } = await import('../../src/commands/login.js');
       await loginCommand.parseAsync([], { from: 'user' });
@@ -115,143 +110,85 @@ describe('login command', () => {
     });
   });
 
-  // ── OAuth login ───────────────────────────────────────────────────────
+  // ── Device login ────────────────────────────────────────────────────────
 
-  describe('OAuth login', () => {
-    it('should login with Google via --google flag', async () => {
-      const { getOAuthUrl } = await import('../../src/api/auth.js');
+  describe('device login', () => {
+    it('should login with device code via --device flag', async () => {
+      const { startDeviceAuth, getDeviceAuthStatus } = await import('../../src/api/auth.js');
       const { saveCredentials, loadCredentials } = await import('../../src/config.js');
-      const { startOAuthServer } = await import('../../src/oauth-server.js');
-      const mockOAuth = vi.mocked(getOAuthUrl);
-      const mockSave = vi.mocked(saveCredentials);
       vi.mocked(loadCredentials).mockReturnValue(null);
 
-      vi.mocked(startOAuthServer).mockResolvedValue({
-        port: 9999,
-        callbackUrl: 'http://localhost:9999/callback',
-        waitForCallback: vi.fn().mockResolvedValue({
-          accessToken: 'google-jwt',
-          userId: 'gu1',
-          email: 'g@test.com',
-          displayName: 'GoogleUser',
-          rawParams: {},
-        }),
-        close: vi.fn(),
+      vi.mocked(startDeviceAuth).mockResolvedValue({
+        success: true,
+        data: {
+          device_code: 'dev123',
+          user_code: 'ABCD-1234',
+          verification_url: 'https://minara.ai/device',
+          expires_in: 600,
+          interval: 1,
+        },
       });
 
-      mockOAuth.mockResolvedValue({
+      vi.mocked(getDeviceAuthStatus).mockResolvedValue({
         success: true,
-        data: { url: 'https://accounts.google.com/o/oauth2/...' },
+        data: {
+          status: 'completed',
+          access_token: 'device-jwt',
+          user: { id: 'du1', email: 'dev@test.com', displayName: 'DevUser' },
+        },
       });
 
       const { loginCommand } = await import('../../src/commands/login.js');
-      await loginCommand.parseAsync(['--google'], { from: 'user' });
+      await loginCommand.parseAsync(['--device'], { from: 'user' });
 
-      expect(mockOAuth).toHaveBeenCalledWith('google', 'http://localhost:9999/callback');
-      expect(mockSave).toHaveBeenCalledWith({
-        accessToken: 'google-jwt',
-        userId: 'gu1',
-        email: 'g@test.com',
-        displayName: 'GoogleUser',
+      expect(vi.mocked(startDeviceAuth)).toHaveBeenCalled();
+      expect(vi.mocked(saveCredentials)).toHaveBeenCalledWith({
+        accessToken: 'device-jwt',
+        userId: 'du1',
+        email: 'dev@test.com',
+        displayName: 'DevUser',
       });
     });
 
-    it('should login with Apple via --apple flag', async () => {
-      const { getOAuthUrl } = await import('../../src/api/auth.js');
+    it('should be the default method in interactive selection', async () => {
+      const { startDeviceAuth, getDeviceAuthStatus } = await import('../../src/api/auth.js');
       const { loadCredentials } = await import('../../src/config.js');
-      const { startOAuthServer } = await import('../../src/oauth-server.js');
       vi.mocked(loadCredentials).mockReturnValue(null);
 
-      vi.mocked(startOAuthServer).mockResolvedValue({
-        port: 8888,
-        callbackUrl: 'http://localhost:8888/callback',
-        waitForCallback: vi.fn().mockResolvedValue({
-          accessToken: 'apple-jwt',
-          userId: 'au1',
-          email: 'a@icloud.com',
-          rawParams: {},
+      const { select } = await import('@inquirer/prompts');
+      vi.mocked(select).mockResolvedValueOnce('device');
+
+      vi.mocked(startDeviceAuth).mockResolvedValue({
+        success: true,
+        data: {
+          device_code: 'dev456',
+          user_code: 'EFGH-5678',
+          verification_url: 'https://minara.ai/device',
+          expires_in: 600,
+          interval: 1,
+        },
+      });
+
+      vi.mocked(getDeviceAuthStatus).mockResolvedValue({
+        success: true,
+        data: {
+          status: 'completed',
+          access_token: 'dev-tok',
+          user: { id: 'du2', email: 'dev2@test.com' },
+        },
+      });
+
+      const { loginCommand } = await import('../../src/commands/login.js');
+      await loginCommand.parseAsync([], { from: 'user' });
+
+      expect(vi.mocked(select)).toHaveBeenCalledWith(
+        expect.objectContaining({
+          choices: expect.arrayContaining([
+            expect.objectContaining({ value: 'device' }),
+          ]),
         }),
-        close: vi.fn(),
-      });
-
-      vi.mocked(getOAuthUrl).mockResolvedValue({
-        success: true,
-        data: { url: 'https://appleid.apple.com/auth/authorize' },
-      });
-
-      const { loginCommand } = await import('../../src/commands/login.js');
-      await loginCommand.parseAsync(['--apple'], { from: 'user' });
-
-      expect(vi.mocked(getOAuthUrl)).toHaveBeenCalledWith('apple', 'http://localhost:8888/callback');
-    });
-
-    it('should fetch user info when callback lacks details', async () => {
-      const { getOAuthUrl, getCurrentUser } = await import('../../src/api/auth.js');
-      const { saveCredentials, loadCredentials } = await import('../../src/config.js');
-      const { startOAuthServer } = await import('../../src/oauth-server.js');
-      vi.mocked(loadCredentials).mockReturnValue(null);
-
-      vi.mocked(startOAuthServer).mockResolvedValue({
-        port: 7777,
-        callbackUrl: 'http://localhost:7777/callback',
-        waitForCallback: vi.fn().mockResolvedValue({
-          accessToken: 'token-only',
-          rawParams: {},
-          // no email or displayName
-        }),
-        close: vi.fn(),
-      });
-
-      vi.mocked(getOAuthUrl).mockResolvedValue({
-        success: true,
-        data: { url: 'https://oauth.test.com' },
-      });
-
-      vi.mocked(getCurrentUser).mockResolvedValue({
-        success: true,
-        data: { id: 'full-id', email: 'fetched@test.com', displayName: 'Fetched' },
-      });
-
-      const { loginCommand } = await import('../../src/commands/login.js');
-      await loginCommand.parseAsync(['--google'], { from: 'user' });
-
-      expect(vi.mocked(getCurrentUser)).toHaveBeenCalledWith('token-only');
-      expect(vi.mocked(saveCredentials)).toHaveBeenLastCalledWith({
-        accessToken: 'token-only',
-        userId: 'full-id',
-        email: 'fetched@test.com',
-        displayName: 'Fetched',
-      });
-    });
-
-    it('should handle OAuth URL fetch failure', async () => {
-      const { getOAuthUrl } = await import('../../src/api/auth.js');
-      const { loadCredentials } = await import('../../src/config.js');
-      const { startOAuthServer } = await import('../../src/oauth-server.js');
-      vi.mocked(loadCredentials).mockReturnValue(null);
-
-      vi.mocked(startOAuthServer).mockResolvedValue({
-        port: 6666,
-        callbackUrl: 'http://localhost:6666/callback',
-        waitForCallback: vi.fn(),
-        close: vi.fn(),
-      });
-
-      vi.mocked(getOAuthUrl).mockResolvedValue({
-        success: false,
-        error: { code: 404, message: 'Provider not supported' },
-      });
-
-      const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {
-        throw new Error('exit');
-      }) as never);
-
-      const { loginCommand } = await import('../../src/commands/login.js');
-      await expect(
-        loginCommand.parseAsync(['--apple'], { from: 'user' }),
-      ).rejects.toThrow('exit');
-
-      exitSpy.mockRestore();
+      );
+      expect(vi.mocked(startDeviceAuth)).toHaveBeenCalled();
     });
   });
 
@@ -260,8 +197,7 @@ describe('login command', () => {
   describe('already logged in', () => {
     it('should skip login when user declines re-login', async () => {
       const { loadCredentials } = await import('../../src/config.js');
-      const { sendEmailCode } = await import('../../src/api/auth.js');
-      const { startOAuthServer } = await import('../../src/oauth-server.js');
+      const { sendEmailCode, startDeviceAuth } = await import('../../src/api/auth.js');
       const { confirm } = await import('@inquirer/prompts');
 
       vi.mocked(loadCredentials).mockReturnValue({ accessToken: 'existing' });
@@ -271,7 +207,7 @@ describe('login command', () => {
       await loginCommand.parseAsync([], { from: 'user' });
 
       expect(vi.mocked(sendEmailCode)).not.toHaveBeenCalled();
-      expect(vi.mocked(startOAuthServer)).not.toHaveBeenCalled();
+      expect(vi.mocked(startDeviceAuth)).not.toHaveBeenCalled();
     });
   });
 });
