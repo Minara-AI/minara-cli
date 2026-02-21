@@ -34,23 +34,24 @@ async function showSpotAssets(token: string): Promise<void> {
   const all = res.data as Record<string, unknown>[];
   const holdings: Record<string, unknown>[] = [];
   let totalValue = 0;
-  let totalCost = 0;
-  let totalUnrealizedPnl = 0;
   let totalRealizedPnl = 0;
+  let totalUnrealizedPnl = 0;
+  let hasUnrealizedPnl = false;
 
   for (const t of all) {
     const bal = Number(t.balance ?? 0);
     const price = Number(t.marketPrice ?? 0);
     const apiVal = Number(t.portfolioValue ?? 0);
     const value = apiVal > 0 ? apiVal : bal * price;
-    const cost = Number(t.portfolioCost ?? 0);
-    const uPnl = Number(t.unrealizedPnl ?? 0) || (value > 0 && cost > 0 ? value - cost : 0);
+    const uPnl = Number(t.unrealizedPnl ?? 0);
     const rPnl = Number(t.realizedPnl ?? 0);
 
     totalValue += value;
-    totalCost += cost;
-    totalUnrealizedPnl += uPnl;
     totalRealizedPnl += rPnl;
+    if (uPnl !== 0) {
+      totalUnrealizedPnl += uPnl;
+      hasUnrealizedPnl = true;
+    }
 
     if (bal > 0 && value >= MIN_DISPLAY_VALUE) {
       holdings.push({ ...t, _value: value });
@@ -67,7 +68,6 @@ async function showSpotAssets(token: string): Promise<void> {
   console.log('');
   console.log(chalk.bold('Spot Wallet:'));
   console.log(`  Portfolio Value : ${fmt(totalValue)}`);
-  console.log(`  Total Cost      : ${fmt(totalCost)}`);
   console.log(`  Unrealized PnL  : ${pnlFmt(totalUnrealizedPnl)}`);
   console.log(`  Realized PnL    : ${pnlFmt(totalRealizedPnl)}`);
 
