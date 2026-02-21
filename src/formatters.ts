@@ -68,6 +68,8 @@ export function formatValue(value: unknown, key?: string): string {
   }
 
   if (typeof value === 'string') {
+    // Hex addresses — must check before numeric coercion (0x… is valid Number)
+    if (/^0x[0-9a-fA-F]{20,}$/.test(value)) return chalk.yellow(value);
     // Numeric string that looks like a price / amount
     const num = Number(value);
     if (!isNaN(num) && value.trim() !== '') {
@@ -77,8 +79,6 @@ export function formatValue(value: unknown, key?: string): string {
     if (/^\d{4}-\d{2}-\d{2}T/.test(value)) {
       return new Date(value).toLocaleString();
     }
-    // Hex addresses
-    if (/^0x[0-9a-fA-F]{20,}$/.test(value)) return chalk.yellow(value);
     // URLs
     if (value.startsWith('http')) return chalk.cyan.underline(value);
     // Status-like
@@ -204,8 +204,13 @@ export function printTable(
 ): void {
   if (_rawJson) { console.log(JSON.stringify(data, null, 2)); return; }
 
-  if (!data || data.length === 0) {
+  if (!data || (Array.isArray(data) && data.length === 0)) {
     console.log(chalk.dim('  No data.'));
+    return;
+  }
+
+  if (!Array.isArray(data)) {
+    printKV(data as object);
     return;
   }
 
@@ -268,15 +273,27 @@ export function printTxResult(data: unknown): void {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /** Spot wallet assets (WalletAsset[]) */
-export const ASSET_COLUMNS: ColumnDef[] = [
-  { key: 'symbol', label: 'Symbol', format: (v, row) => chalk.bold(String(v ?? row.tokenSymbol ?? '—')) },
-  { key: 'balance', label: 'Balance', format: (v, row) => String(v ?? row.amount ?? '—') },
-  { key: 'chain', label: 'Chain', format: (v, row) => chalk.cyan(String(v ?? row.chainName ?? '—')) },
-  { key: 'usdValue', label: 'USD Value', format: (v) => v ? `$${Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : chalk.dim('—') },
-  { key: 'tokenAddress', label: 'Token Address', format: (v) => v ? chalk.dim(truncate(String(v), 16)) : chalk.dim('—') },
+export const SPOT_COLUMNS: ColumnDef[] = [
+  { key: 'tokenSymbol', label: 'Token', format: (v) => chalk.bold(String(v ?? '—')) },
+  { key: 'chainId', label: 'Chain', format: (v) => {
+    const s = String(v ?? '—');
+    return chalk.cyan(s.charAt(0).toUpperCase() + s.slice(1));
+  }},
+  { key: 'balance', label: 'Balance' },
+  { key: 'marketPrice', label: 'Price', format: (v) => v ? `$${Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}` : chalk.dim('—') },
+  { key: '_value', label: 'Value', format: (v) => {
+    const n = Number(v ?? 0);
+    return n > 0 ? `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : chalk.dim('—');
+  }},
+  { key: 'unrealizedPnl', label: 'PnL', format: (v) => {
+    const n = Number(v ?? 0);
+    if (n === 0) return chalk.dim('—');
+    const color = n >= 0 ? chalk.green : chalk.red;
+    return color(`${n >= 0 ? '+' : ''}$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+  }},
 ];
 
-/** Perps positions (PerpsPosition[]) */
+/** Perps positions — API uses snake_case field names */
 export const POSITION_COLUMNS: ColumnDef[] = [
   { key: 'symbol', label: 'Symbol', format: (v) => chalk.bold(String(v ?? '—')) },
   { key: 'side', label: 'Side', format: (v) => {
@@ -285,14 +302,15 @@ export const POSITION_COLUMNS: ColumnDef[] = [
   }},
   { key: 'size', label: 'Size' },
   { key: 'entryPrice', label: 'Entry', format: (v) => formatValue(v, 'price') },
-  { key: 'markPrice', label: 'Mark', format: (v) => formatValue(v, 'price') },
-  { key: 'pnl', label: 'PnL', format: (v) => {
+  { key: 'positionValue', label: 'Value', format: (v) => formatValue(v, 'price') },
+  { key: 'unrealizedPnl', label: 'PnL', format: (v) => {
     if (!v && v !== 0) return chalk.dim('—');
     const n = Number(v);
     const color = n >= 0 ? chalk.green : chalk.red;
     return color(`${n >= 0 ? '+' : ''}$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
   }},
   { key: 'leverage', label: 'Lev', format: (v) => v ? `${v}x` : chalk.dim('—') },
+  { key: 'marginUsed', label: 'Margin', format: (v) => formatValue(v, 'price') },
 ];
 
 /** Limit orders (LimitOrderInfo[]) */
@@ -309,16 +327,6 @@ export const LIMIT_ORDER_COLUMNS: ColumnDef[] = [
   { key: 'status', label: 'Status', format: (v) => formatValue(v, 'status') },
 ];
 
-/** Copy trades (CopyTradeInfo[]) */
-export const COPY_TRADE_COLUMNS: ColumnDef[] = [
-  { key: 'id', label: 'ID', format: (v) => chalk.dim(truncate(String(v ?? ''), 12)) },
-  { key: 'name', label: 'Name', format: (v) => String(v ?? chalk.dim('—')) },
-  { key: 'chain', label: 'Chain', format: (v) => chalk.cyan(String(v ?? '—')) },
-  { key: 'targetAddress', label: 'Target', format: (v) => v ? chalk.yellow(truncate(String(v), 14)) : chalk.dim('—') },
-  { key: 'fixedAmount', label: 'Amount', format: (v) => v ? `$${v}` : chalk.dim('—') },
-  { key: 'copySell', label: 'Copy Sell', format: (v) => v ? chalk.green('Yes') : chalk.dim('No') },
-  { key: 'status', label: 'Status', format: (v) => formatValue(v, 'status') },
-];
 
 /** Format large numbers as $1.23B / $456.78M / $12.3K */
 function compactUsd(v: unknown): string {

@@ -14,7 +14,6 @@ import { get, post } from '../../src/api/client.js';
 import {
   getAccount,
   getAssets,
-  swap,
   swaps,
   swapsSimulate,
   transfer,
@@ -42,23 +41,6 @@ describe('crosschain API', () => {
     it('should GET /v1/tx/cross-chain/assets with token', async () => {
       await getAssets('tk');
       expect(mockGet).toHaveBeenCalledWith('/v1/tx/cross-chain/assets', { token: 'tk' });
-    });
-  });
-
-  describe('swap', () => {
-    it('should POST swap DTO with token', async () => {
-      const dto = {
-        chain: 'solana' as const,
-        side: 'buy' as const,
-        tokenAddress: '0xABC',
-        buyUsdAmountOrSellTokenAmount: '100',
-      };
-      await swap('tk', dto);
-
-      expect(mockPost).toHaveBeenCalledWith('/v1/tx/cross-chain/swap', {
-        token: 'tk',
-        body: dto,
-      });
     });
   });
 

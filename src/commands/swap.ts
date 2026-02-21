@@ -1,16 +1,16 @@
 import { Command } from 'commander';
 import { input, select, confirm } from '@inquirer/prompts';
 import chalk from 'chalk';
-import { swap, swapsSimulate } from '../api/crosschain.js';
+import { swaps, swapsSimulate } from '../api/crosschain.js';
+import { get } from '../api/client.js';
 import { requireAuth } from '../config.js';
-import { success, info, spinner, formatOrderSide, assertApiOk, selectChain, wrapAction, requireTransactionConfirmation, lookupToken, formatTokenLabel } from '../utils.js';
+import { success, info, warn, spinner, formatOrderSide, assertApiOk, wrapAction, requireTransactionConfirmation, lookupToken, formatTokenLabel, normalizeChain } from '../utils.js';
 import { requireTouchId } from '../touchid.js';
 import { printTxResult, printKV } from '../formatters.js';
 import type { SwapSide } from '../types.js';
 
 export const swapCommand = new Command('swap')
   .description('Swap tokens (cross-chain spot trading)')
-  .option('-c, --chain <chain>', 'Blockchain (e.g. solana, base, ethereum)')
   .option('-s, --side <side>', 'buy or sell')
   .option('-t, --token <address|ticker>', 'Token contract address or ticker symbol')
   .option('-a, --amount <amount>', 'USD amount (buy) or token amount (sell)')
@@ -19,10 +19,7 @@ export const swapCommand = new Command('swap')
   .action(wrapAction(async (opts) => {
     const creds = requireAuth();
 
-    // ── 1. Chain ─────────────────────────────────────────────────────────
-    const chain = opts.chain ?? await selectChain();
-
-    // ── 2. Side ──────────────────────────────────────────────────────────
+    // ── 1. Side ──────────────────────────────────────────────────────────
     let side: SwapSide = opts.side;
     if (!side) {
       side = await select({
@@ -34,22 +31,61 @@ export const swapCommand = new Command('swap')
       });
     }
 
-    // ── 3. Token ───────────────────────────────────────────────────────────
+    // ── 2. Token ───────────────────────────────────────────────────────────
     const tokenInput: string = opts.token ?? await input({
       message: 'Token (contract address or ticker):',
       validate: (v) => (v.length > 0 ? true : 'Please enter a token address or ticker'),
     });
     const tokenInfo = await lookupToken(tokenInput);
 
+    // ── 3. Chain (derived from token) ────────────────────────────────────
+    const chain = normalizeChain(tokenInfo.chain);
+    if (!chain) {
+      warn(`Unable to determine chain for token. Raw chain value: ${tokenInfo.chain ?? 'unknown'}`);
+      return;
+    }
+
     // ── 4. Amount ────────────────────────────────────────────────────────
-    const amountLabel = side === 'buy' ? 'USD amount to spend' : 'Token amount to sell';
-    const amount: string = opts.amount ?? await input({
+    let maxBalance: number | undefined;
+    if (side === 'sell') {
+      const pnlRes = await get<Record<string, unknown>[]>('/users/pnls/all', { token: creds.accessToken });
+      if (pnlRes.success && Array.isArray(pnlRes.data)) {
+        const match = pnlRes.data.find((t) => {
+          const addr = String(t.tokenAddress ?? '').toLowerCase();
+          const cid = String(t.chainId ?? '').toLowerCase();
+          const targetChain = chain.toLowerCase();
+          return addr === tokenInfo.address.toLowerCase() && cid === targetChain;
+        });
+        if (match) {
+          maxBalance = Number(match.balance ?? 0);
+          info(`Available balance: ${chalk.bold(String(maxBalance))} ${tokenInfo.symbol ?? ''}`);
+        }
+      }
+    }
+
+    const amountLabel = side === 'buy' ? 'USD amount to spend' : `Token amount to sell${maxBalance ? ' ("all" for max)' : ''}`;
+    let amount: string = opts.amount ?? await input({
       message: `${amountLabel}:`,
       validate: (v) => {
+        if (side === 'sell' && v.toLowerCase() === 'all') return true;
         const n = parseFloat(v);
         return (isNaN(n) || n <= 0) ? 'Enter a valid positive number' : true;
       },
     });
+
+    if (side === 'sell') {
+      if (amount.toLowerCase() === 'all') {
+        if (!maxBalance || maxBalance <= 0) {
+          warn('Could not determine balance. Please enter an amount manually.');
+          return;
+        }
+        amount = String(maxBalance);
+        info(`Selling all: ${chalk.bold(amount)} ${tokenInfo.symbol ?? ''}`);
+      } else if (maxBalance && parseFloat(amount) > maxBalance) {
+        info(`Amount exceeds balance (${maxBalance}), using max balance`);
+        amount = String(maxBalance);
+      }
+    }
 
     // ── 5. Summary ───────────────────────────────────────────────────────
     console.log('');
@@ -96,17 +132,25 @@ export const swapCommand = new Command('swap')
     }
 
     // ── 8. Transaction confirmation & Touch ID ────────────────────────────
-    await requireTransactionConfirmation(`${side.toUpperCase()} swap · ${amount} ${side === 'buy' ? 'USD' : 'tokens'} · ${chain}`, tokenInfo);
+    await requireTransactionConfirmation(
+      `${side.toUpperCase()} swap · ${amount} ${side === 'buy' ? 'USD' : 'tokens'} · ${chain}`,
+      tokenInfo,
+      { chain, side, amount: `${amount} ${side === 'buy' ? 'USD' : '(token)'}` },
+    );
     await requireTouchId();
 
     // ── 9. Execute ───────────────────────────────────────────────────────
     const spin = spinner('Executing swap…');
-    const res = await swap(creds.accessToken, {
+    const res = await swaps(creds.accessToken, [{
       chain, side, tokenAddress: tokenInfo.address, buyUsdAmountOrSellTokenAmount: amount,
-    });
+    }]);
     spin.stop();
 
     assertApiOk(res, 'Swap failed');
     success('Swap submitted!');
-    printTxResult(res.data);
+    if (Array.isArray(res.data)) {
+      for (const tx of res.data) printTxResult(tx);
+    } else {
+      printTxResult(res.data);
+    }
   }));

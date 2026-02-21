@@ -62,7 +62,7 @@ export const transferCommand = new Command('transfer')
     }
 
     // ── 6. Transaction confirmation & Touch ID ────────────────────────────
-    await requireTransactionConfirmation(`Transfer ${amount} tokens → ${recipient} · ${chain}`, tokenInfo);
+    await requireTransactionConfirmation(`Transfer ${amount} tokens → ${recipient} · ${chain}`, tokenInfo, { chain, amount });
     await requireTouchId();
 
     // ── 7. Execute ───────────────────────────────────────────────────────

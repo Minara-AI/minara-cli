@@ -79,4 +79,14 @@ describe('perps API', () => {
       token: 'tk', query: { page: 1, limit: 20 },
     });
   });
+
+  it('getAccountSummary should GET /v1/fully-managed/account-summary', async () => {
+    await perps.getAccountSummary('tk');
+    expect(mockGet).toHaveBeenCalledWith('/v1/fully-managed/account-summary', { token: 'tk' });
+  });
+
+  it('getEquityHistory should GET /v1/tx/perps/equity-history-chart/all', async () => {
+    await perps.getEquityHistory('tk');
+    expect(mockGet).toHaveBeenCalledWith('/v1/tx/perps/equity-history-chart/all', { token: 'tk' });
+  });
 });

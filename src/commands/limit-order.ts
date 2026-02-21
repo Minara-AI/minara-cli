@@ -64,7 +64,7 @@ const createCmd = new Command('create')
       if (!ok) return;
     }
 
-    await requireTransactionConfirmation(`Limit ${side} · $${amount} · price ${priceCondition} $${targetPrice} · ${chain}`, tokenInfo);
+    await requireTransactionConfirmation(`Limit ${side} · $${amount} · price ${priceCondition} $${targetPrice} · ${chain}`, tokenInfo, { chain, side, amount: `$${amount}` });
     await requireTouchId();
 
     const spin = spinner('Creating limit order…');

@@ -142,6 +142,86 @@ export interface TokenDisplayInfo {
   symbol?: string;
   name?: string;
   address: string;
+  chain?: string;
+}
+
+const NATIVE_TOKEN_ADDRESS: Record<string, string> = {
+  sol: 'So11111111111111111111111111111111111111112',
+  solana: 'So11111111111111111111111111111111111111112',
+};
+const EVM_NATIVE = '0x' + '0'.repeat(40);
+
+function resolveNativeAddress(chain?: string): string {
+  if (!chain) return EVM_NATIVE;
+  return NATIVE_TOKEN_ADDRESS[chain.toLowerCase()] ?? EVM_NATIVE;
+}
+
+const CHAIN_ALIAS: Record<string, Chain> = {
+  sol: 'solana',
+  eth: 'ethereum',
+  arb: 'arbitrum',
+  op: 'optimism',
+  matic: 'polygon',
+  poly: 'polygon',
+  avax: 'avalanche',
+  bnb: 'bsc',
+  bera: 'berachain',
+  // Numeric chain IDs returned by the token search API
+  '101': 'solana',
+  '1': 'ethereum',
+  '8453': 'base',
+  '42161': 'arbitrum',
+  '10': 'optimism',
+  '56': 'bsc',
+  '137': 'polygon',
+  '43114': 'avalanche',
+  '81457': 'blast',
+  '169': 'manta',
+  '34443': 'mode',
+  '146': 'sonic',
+  '80094': 'berachain',
+  '196': 'xlayer',
+  '4200': 'merlin',
+};
+
+/**
+ * Normalize a chain identifier from the token search API to a supported
+ * `Chain` value used by the swap / transfer APIs.
+ */
+export function normalizeChain(raw?: string): Chain | undefined {
+  if (!raw) return undefined;
+  const lower = raw.toLowerCase();
+  if ((SUPPORTED_CHAINS as readonly string[]).includes(lower)) return lower as Chain;
+  return CHAIN_ALIAS[lower];
+}
+
+/** Capitalize chain name for display (e.g. "solana" → "Solana", "bsc" → "BSC"). */
+function displayChain(raw?: string): string {
+  const name = normalizeChain(raw) ?? raw ?? 'unknown';
+  if (name === 'bsc') return 'BSC';
+  return name.charAt(0).toUpperCase() + name.slice(1);
+}
+
+/** Lower = cheaper gas. Used to sort chain choices so the cheapest is first. */
+const CHAIN_GAS_RANK: Record<string, number> = {
+  sol: 1, solana: 1, '101': 1,
+  base: 2, '8453': 2,
+  arbitrum: 3, arb: 3, '42161': 3,
+  optimism: 4, op: 4, '10': 4,
+  bsc: 5, bnb: 5, '56': 5,
+  polygon: 6, matic: 6, poly: 6, '137': 6,
+  sonic: 7, '146': 7,
+  avalanche: 8, avax: 8, '43114': 8,
+  berachain: 9, bera: 9, '80094': 9,
+  blast: 10, '81457': 10,
+  manta: 11, '169': 11,
+  mode: 12, '34443': 12,
+  ethereum: 50, eth: 50, '1': 50,
+};
+
+function chainGasRank(chain?: string): number {
+  if (!chain) return 99;
+  return CHAIN_GAS_RANK[chain.toLowerCase()] ?? 30;
 }
 
 /**
@@ -186,27 +266,57 @@ export async function lookupToken(tokenInput: string): Promise<TokenDisplayInfo>
         (t) => t.address?.toLowerCase() === keyword.toLowerCase(),
       );
       if (exact) {
-        return { symbol: exact.symbol, name: exact.name, address: exact.address ?? tokenInput };
+        return { symbol: exact.symbol, name: exact.name ?? displayChain(exact.chain), address: exact.address ?? resolveNativeAddress(exact.chain), chain: exact.chain };
       }
     }
 
     if (tokens.length === 1) {
       const t = tokens[0];
-      return { symbol: t.symbol, name: t.name, address: t.address ?? tokenInput };
+      return { symbol: t.symbol, name: t.name ?? displayChain(t.chain), address: t.address ?? resolveNativeAddress(t.chain), chain: t.chain };
+    }
+
+    // Check if all results share the same symbol → multi-chain scenario
+    const uniqueSymbols = new Set(tokens.map((t) => t.symbol?.toLowerCase()));
+    if (uniqueSymbols.size === 1) {
+      const sorted = [...tokens].sort((a, b) => chainGasRank(a.chain) - chainGasRank(b.chain));
+      info(`$${sorted[0].symbol} is available on ${sorted.length} chains`);
+      const selected = await select<typeof sorted[number]>({
+        message: 'Select chain:',
+        choices: sorted.map((t, i) => {
+          const chainName = displayChain(t.chain);
+          const addr = t.address
+            ? chalk.dim(` · ${t.address.slice(0, 10)}…${t.address.slice(-6)}`)
+            : chalk.dim(' · native token');
+          const tag = i === 0 ? chalk.green(' (lowest gas)') : '';
+          return { name: `${chalk.cyan(chainName)}${tag}${addr}`, value: t };
+        }),
+      });
+      return {
+        symbol: selected.symbol,
+        name: selected.name ?? displayChain(selected.chain),
+        address: selected.address ?? resolveNativeAddress(selected.chain),
+        chain: selected.chain,
+      };
     }
 
     info(`Found ${tokens.length} tokens matching "${tokenInput}"`);
     const selected = await select<typeof tokens[number]>({
       message: 'Select the correct token:',
-      choices: tokens.map((t) => ({
-        name: `${t.symbol ? chalk.bold('$' + t.symbol) : '?'} — ${t.name ?? 'Unknown'}\n    ${chalk.yellow(t.address ?? '')}`,
-        value: t,
-      })),
+      choices: tokens.map((t) => {
+        const sym = t.symbol ? chalk.bold('$' + t.symbol) : '?';
+        const chainName = displayChain(t.chain);
+        const label = t.name || chainName;
+        const desc = label ? ` — ${label}` : '';
+        const chainTag = chainName && chainName !== label ? chalk.dim(` [${chainName}]`) : '';
+        const addr = t.address ? `\n    ${chalk.yellow(t.address)}` : chalk.dim('\n    (native token)');
+        return { name: `${sym}${desc}${chainTag}${addr}`, value: t };
+      }),
     });
     return {
       symbol: selected.symbol,
-      name: selected.name,
-      address: selected.address ?? tokenInput,
+      name: selected.name ?? displayChain(selected.chain),
+      address: selected.address ?? resolveNativeAddress(selected.chain),
+      chain: selected.chain,
     };
   } catch {
     spin.stop();
@@ -240,17 +350,29 @@ export function formatTokenLabel(token: TokenDisplayInfo): string {
 export async function requireTransactionConfirmation(
   description: string,
   token?: TokenDisplayInfo,
+  details?: { chain?: string; side?: string; amount?: string },
 ): Promise<void> {
   const config = loadConfig();
   if (config.confirmBeforeTransaction === false) return;
 
   console.log('');
   console.log(chalk.yellow('⚠'), chalk.bold('Transaction confirmation'));
+  if (details?.chain) {
+    console.log(chalk.dim('  Chain    : ') + chalk.cyan(details.chain));
+  }
   if (token) {
     const ticker = token.symbol ? '$' + token.symbol : undefined;
     const label = [ticker, token.name].filter(Boolean).join(' — ');
     console.log(chalk.dim('  Token    : ') + (label ? chalk.bold(label) : chalk.dim('Unknown token')));
     console.log(chalk.dim('  Address  : ') + chalk.yellow(token.address));
+  }
+  if (details?.side) {
+    const s = details.side.toLowerCase();
+    const colored = s === 'buy' ? chalk.green.bold(details.side.toUpperCase()) : chalk.red.bold(details.side.toUpperCase());
+    console.log(chalk.dim('  Side     : ') + colored);
+  }
+  if (details?.amount) {
+    console.log(chalk.dim('  Amount   : ') + chalk.bold(details.amount));
   }
   console.log(chalk.dim(`  Action   : ${description}`));
   console.log('');

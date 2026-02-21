@@ -304,45 +304,6 @@ export interface UpdateLimitOrderDto {
   expiredAt?: number;
 }
 
-// ─── Copy Trade ──────────────────────────────────────────────────────────
-
-export interface CreateCopyTradeDto {
-  targetAddress: string;
-  chain: string;
-  name?: string;
-  mode?: 'fixedAmount';
-  copySell?: boolean;
-  copySellSamePercentage?: boolean;
-  copySellQuitPercentage?: number;
-  fixedAmount?: number;
-  status?: 'running' | 'paused';
-  expiredAt?: number;
-}
-
-export interface CopyTradeInfo {
-  id: string;
-  name?: string;
-  targetAddress: string;
-  chain: string;
-  mode?: string;
-  fixedAmount?: number;
-  copySell?: boolean;
-  status?: string;
-  createdAt?: string;
-}
-
-export interface UpdateCopyTradeDto {
-  chain: string;
-  name?: string;
-  mode?: 'fixedAmount';
-  copySell?: boolean;
-  copySellSamePercentage?: boolean;
-  copySellQuitPercentage?: number;
-  fixedAmount?: number;
-  targetAddress?: string;
-  status?: 'running' | 'paused';
-  expiredAt?: number;
-}
 
 // ─── User Trade Config ───────────────────────────────────────────────────
 

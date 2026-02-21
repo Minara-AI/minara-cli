@@ -4,7 +4,7 @@
  * Tests formatting helpers (without chalk color codes).
  */
 import { describe, it, expect } from 'vitest';
-import { truncate, formatOrderSide, formatOrderStatus } from '../src/utils.js';
+import { truncate, formatOrderSide, formatOrderStatus, normalizeChain } from '../src/utils.js';
 
 describe('utils', () => {
   describe('truncate', () => {
@@ -44,6 +44,43 @@ describe('utils', () => {
 
     it('should return unknown statuses as-is', () => {
       expect(formatOrderStatus('custom')).toBe('custom');
+    });
+  });
+
+  describe('normalizeChain', () => {
+    it('should return supported chain names as-is', () => {
+      expect(normalizeChain('solana')).toBe('solana');
+      expect(normalizeChain('ethereum')).toBe('ethereum');
+      expect(normalizeChain('base')).toBe('base');
+    });
+
+    it('should map short aliases to full chain names', () => {
+      expect(normalizeChain('sol')).toBe('solana');
+      expect(normalizeChain('eth')).toBe('ethereum');
+      expect(normalizeChain('arb')).toBe('arbitrum');
+      expect(normalizeChain('op')).toBe('optimism');
+      expect(normalizeChain('avax')).toBe('avalanche');
+      expect(normalizeChain('bnb')).toBe('bsc');
+    });
+
+    it('should map numeric chain IDs', () => {
+      expect(normalizeChain('101')).toBe('solana');
+      expect(normalizeChain('1')).toBe('ethereum');
+      expect(normalizeChain('8453')).toBe('base');
+      expect(normalizeChain('42161')).toBe('arbitrum');
+      expect(normalizeChain('56')).toBe('bsc');
+      expect(normalizeChain('137')).toBe('polygon');
+    });
+
+    it('should be case-insensitive', () => {
+      expect(normalizeChain('SOLANA')).toBe('solana');
+      expect(normalizeChain('Sol')).toBe('solana');
+      expect(normalizeChain('ETH')).toBe('ethereum');
+    });
+
+    it('should return undefined for unknown chains', () => {
+      expect(normalizeChain('unknown-chain')).toBeUndefined();
+      expect(normalizeChain(undefined)).toBeUndefined();
     });
   });
 });

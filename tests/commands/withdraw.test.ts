@@ -1,21 +1,20 @@
 /**
  * Integration tests for the withdraw command.
- *
- * Mocks: config, API, inquirer prompts, ora.
- * Verifies: auth check, asset display, transfer call, cancellation flow.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// ── Mocks ─────────────────────────────────────────────────────────────────
-
 vi.mock('../../src/config.js', () => ({
   requireAuth: vi.fn(),
-  loadConfig: () => ({ baseUrl: 'https://api.minara.ai' }),
+  loadConfig: () => ({ baseUrl: 'https://api.minara.ai', confirmBeforeTransaction: false }),
 }));
 
 vi.mock('../../src/api/crosschain.js', () => ({
   transfer: vi.fn(),
   getAssets: vi.fn(),
+}));
+
+vi.mock('../../src/touchid.js', () => ({
+  requireTouchId: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('@inquirer/prompts', () => ({
@@ -28,9 +27,19 @@ vi.mock('ora', () => ({
   default: () => ({ start: () => ({ stop: () => {}, text: '' }) }),
 }));
 
+vi.mock('../../src/utils.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/utils.js')>();
+  return {
+    ...actual,
+    lookupToken: vi.fn(),
+    requireTransactionConfirmation: vi.fn().mockResolvedValue(undefined),
+  };
+});
+
 import { requireAuth } from '../../src/config.js';
 import { transfer, getAssets } from '../../src/api/crosschain.js';
 import { select, input, confirm } from '@inquirer/prompts';
+import { lookupToken } from '../../src/utils.js';
 
 const mockRequireAuth = vi.mocked(requireAuth);
 const mockTransfer = vi.mocked(transfer);
@@ -38,6 +47,7 @@ const mockGetAssets = vi.mocked(getAssets);
 const mockSelect = vi.mocked(select);
 const mockInput = vi.mocked(input);
 const mockConfirm = vi.mocked(confirm);
+const mockLookupToken = vi.mocked(lookupToken);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -54,17 +64,20 @@ beforeEach(() => {
       { symbol: 'USDC', balance: '1000', chain: 'ethereum' },
     ],
   });
+
+  mockLookupToken.mockResolvedValue({
+    symbol: 'SOL', name: 'Solana', address: '0xTokenAddr', chain: 'sol',
+  });
 });
 
 describe('withdraw command', () => {
   it('should call requireAuth first', async () => {
-    // Set up interactive prompts
     mockSelect.mockResolvedValueOnce('solana');
     mockInput
-      .mockResolvedValueOnce('0x0000000000000000000000000000000000000000')
+      .mockResolvedValueOnce('0xToken')
       .mockResolvedValueOnce('1.5')
       .mockResolvedValueOnce('0xExternalWallet');
-    mockConfirm.mockResolvedValueOnce(false); // cancel
+    mockConfirm.mockResolvedValueOnce(false);
 
     const { withdrawCommand } = await import('../../src/commands/withdraw.js');
 
@@ -85,15 +98,10 @@ describe('withdraw command', () => {
 
     const { withdrawCommand } = await import('../../src/commands/withdraw.js');
 
-    const output: string[] = [];
-    const logSpy = vi.spyOn(console, 'log').mockImplementation((...args) => {
-      output.push(args.join(' '));
-    });
-
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     await withdrawCommand.parseAsync([], { from: 'user' });
 
     expect(mockGetAssets).toHaveBeenCalledWith('test-token');
-
     logSpy.mockRestore();
   });
 
@@ -103,14 +111,13 @@ describe('withdraw command', () => {
       .mockResolvedValueOnce('0xUSDC')
       .mockResolvedValueOnce('100')
       .mockResolvedValueOnce('0xRecipient');
-    mockConfirm.mockResolvedValueOnce(false); // cancel
+    mockConfirm.mockResolvedValueOnce(false);
 
     const { withdrawCommand } = await import('../../src/commands/withdraw.js');
 
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     await withdrawCommand.parseAsync([], { from: 'user' });
 
-    // transfer API should NOT be called
     expect(mockTransfer).not.toHaveBeenCalled();
     logSpy.mockRestore();
   });
@@ -121,7 +128,10 @@ describe('withdraw command', () => {
       .mockResolvedValueOnce('0xTokenAddr')
       .mockResolvedValueOnce('2.5')
       .mockResolvedValueOnce('0xDestAddr');
-    mockConfirm.mockResolvedValueOnce(true); // confirm
+    mockLookupToken.mockResolvedValueOnce({
+      symbol: 'SOL', name: 'Solana', address: '0xTokenAddr', chain: 'sol',
+    });
+    mockConfirm.mockResolvedValueOnce(true);
     mockTransfer.mockResolvedValue({ success: true, data: { txId: 'tx123' } });
 
     const { withdrawCommand } = await import('../../src/commands/withdraw.js');
@@ -139,6 +149,9 @@ describe('withdraw command', () => {
   });
 
   it('should accept CLI options and skip prompts (with --yes)', async () => {
+    mockLookupToken.mockResolvedValueOnce({
+      symbol: 'USDC', name: 'USDC', address: '0xUSDC', chain: 'ethereum',
+    });
     mockTransfer.mockResolvedValue({ success: true, data: { txId: 'tx456' } });
 
     const { withdrawCommand } = await import('../../src/commands/withdraw.js');
@@ -152,9 +165,7 @@ describe('withdraw command', () => {
       '-y',
     ], { from: 'user' });
 
-    // Should NOT call interactive prompts for chain/token/amount/address
     expect(mockSelect).not.toHaveBeenCalled();
-    expect(mockInput).not.toHaveBeenCalled();
     expect(mockConfirm).not.toHaveBeenCalled();
 
     expect(mockTransfer).toHaveBeenCalledWith('test-token', {

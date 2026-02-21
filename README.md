@@ -18,9 +18,9 @@
 
 ## Features
 
-- **AI Chat** — Crypto-native AI for on-chain analysis, market research, and DeFi due diligence. Interactive REPL & single-shot queries with fast / quality / thinking modes
-- **Wallet** — Balances, deposits, and withdrawals across all supported chains
-- **Trading** — Cross-chain swaps, perpetual futures, limit orders, and copy trading. Accepts `$TICKER`, token name, or contract address
+- **AI Chat** — Crypto-native AI for on-chain analysis, market research, and DeFi due diligence. Interactive REPL & single-shot queries with `fast` / `quality` / `thinking` modes
+- **Wallet & Balance** — Unified balance view, spot holdings with PnL, perps account overview, deposits and withdrawals
+- **Chain-Abstracted Trading** — Cross-chain swaps with automatic chain detection, perpetual futures, and limit orders. Accepts `$TICKER`, token name, or contract address
 - **Market Discovery** — Trending tokens, Fear & Greed Index, on-chain metrics, and token / stock search
 
 ## Installation
@@ -55,8 +55,8 @@ minara chat
 # Or send a single question
 minara chat "What's the best DeFi yield right now?"
 
-# Swap tokens (accepts ticker or address)
-minara swap -c solana -t '$BONK' -s buy -a 100
+# Swap tokens (chain auto-detected from token)
+minara swap -t '$BONK' -s buy -a 100
 
 # View trending tokens
 minara discover trending
@@ -81,19 +81,23 @@ minara login --apple          # Apple ID (opens browser)
 
 ### Wallet & Funds
 
-| Command               | Description                                           |
-| --------------------- | ----------------------------------------------------- |
-| `minara assets`       | View wallet assets (interactive: spot / perps / both) |
-| `minara assets spot`  | View spot wallet balances across all chains           |
-| `minara assets perps` | View perps account balance and open positions         |
-| `minara deposit`      | Show deposit addresses and supported networks         |
-| `minara withdraw`     | Withdraw tokens to an external wallet                 |
+| Command               | Description                                     |
+| --------------------- | ----------------------------------------------- |
+| `minara balance`      | Combined USDC/USDT balance across spot and perps |
+| `minara assets`       | Full overview: spot holdings + perps account     |
+| `minara assets spot`  | Spot wallet: portfolio value, cost, PnL, holdings |
+| `minara assets perps` | Perps account: equity, margin, positions         |
+| `minara deposit`      | Deposit to spot (view addresses) or perps (direct / from spot) |
+| `minara withdraw`     | Withdraw tokens to an external wallet            |
 
 ```bash
-minara assets                     # Interactive: Spot / Perps / Both
-minara assets spot                # Spot wallet across all chains
-minara assets perps               # Perps account balance + positions
-minara deposit
+minara balance                    # Quick total: Spot + Perps available balance
+minara assets                     # Full overview (spot + perps)
+minara assets spot                # Spot wallet with PnL breakdown
+minara assets perps               # Perps equity, margin, positions
+minara deposit                    # Interactive: Spot (addresses) or Perps (address / transfer)
+minara deposit spot               # Show spot wallet deposit addresses (EVM + Solana)
+minara deposit perps              # Perps: show Arbitrum deposit address, or transfer from Spot → Perps
 minara withdraw -c solana -t '$SOL' -a 10 --to <address>
 minara withdraw                   # Interactive mode (accepts ticker or address)
 ```
@@ -102,23 +106,25 @@ minara withdraw                   # Interactive mode (accepts ticker or address)
 
 | Command           | Description                        |
 | ----------------- | ---------------------------------- |
-| `minara swap`     | Swap tokens (cross-chain)          |
+| `minara swap`     | Swap tokens (chain auto-detected)  |
 | `minara transfer` | Transfer tokens to another address |
 
 ```bash
-minara swap                        # Interactive
-minara swap -c solana -s buy -t '$BONK' -a 100   # By ticker
-minara swap -c solana -s buy -t <address> -a 100  # By contract address
+minara swap                        # Interactive: side → token → amount
+minara swap -s buy -t '$BONK' -a 100              # Buy by ticker (chain auto-detected)
+minara swap -s sell -t '$NVDAx' -a all             # Sell entire balance
 minara swap --dry-run              # Simulate without executing
 ```
 
-> **Token input:** All token fields (`-t`) accept a `$TICKER` (e.g. `$BONK`), a token name, or a contract address. When multiple tokens match, you'll be prompted to select the correct one with full contract addresses displayed.
+> **Chain abstraction:** The chain is automatically detected from the token. If a token exists on multiple chains (e.g. USDC), you'll be prompted to pick one, sorted by gas cost (lowest first). Sell mode supports `all` to sell full balance, and caps amounts exceeding your balance.
+>
+> **Token input:** All token fields (`-t`) accept a `$TICKER` (e.g. `$BONK`), a token name, or a contract address.
 
 ### Perpetual Futures
 
 | Command                     | Description                               |
 | --------------------------- | ----------------------------------------- |
-| `minara perps deposit`      | Deposit USDC to Hyperliquid perps account |
+| `minara perps deposit`      | Deposit USDC to perps (or use `minara deposit perps`) |
 | `minara perps withdraw`     | Withdraw USDC from perps account          |
 | `minara perps positions`    | View all open positions                   |
 | `minara perps order`        | Place an order (interactive builder)      |
@@ -147,23 +153,6 @@ minara perps leverage              # Interactive: set leverage for a trading pai
 minara limit-order create          # Interactive: token, price, side, amount, expiry
 minara limit-order list            # Show all orders with status
 minara limit-order cancel abc123   # Cancel order by ID
-```
-
-### Copy Trading
-
-| Command                         | Description                 |
-| ------------------------------- | --------------------------- |
-| `minara copy-trade create`      | Create a new copy-trade bot |
-| `minara copy-trade list`        | List all copy-trade bots    |
-| `minara copy-trade start <id>`  | Start a paused bot          |
-| `minara copy-trade stop <id>`   | Pause a running bot         |
-| `minara copy-trade delete <id>` | Delete a bot permanently    |
-
-```bash
-minara copy-trade create           # Interactive: target wallet, chain, amount, options
-minara copy-trade list             # Show all bots with status
-minara copy-trade start abc123     # Resume a paused bot
-minara copy-trade stop abc123      # Pause a running bot
 ```
 
 ### AI Chat
@@ -279,12 +268,15 @@ All fund-related operations go through a multi-layer safety flow:
 4. Execute
 ```
 
-The **transaction confirmation** shows the token ticker, name, full contract address, and operation details before asking for final approval:
+The **transaction confirmation** shows chain, token, address, side, amount, and operation details before asking for final approval:
 
 ```
 ⚠ Transaction confirmation
+  Chain    : solana
   Token    : $BONK — Bonk
   Address  : DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263
+  Side     : BUY
+  Amount   : 100 USD
   Action   : BUY swap · 100 USD · solana
 ? Are you sure you want to proceed? (y/N)
 ```
@@ -299,7 +291,7 @@ Minara CLI supports macOS Touch ID to protect all fund-related operations. When 
 minara config                     # Select "Touch ID" to enable / disable
 ```
 
-**Protected operations:** `withdraw`, `transfer`, `swap`, `perps deposit`, `perps withdraw`, `perps order`, `limit-order create`, `copy-trade create`
+**Protected operations:** `withdraw`, `transfer`, `swap`, `deposit` (Spot→Perps transfer), `perps deposit`, `perps withdraw`, `perps order`, `limit-order create`
 
 > **Note:** Touch ID requires macOS with Touch ID hardware. The `--yes` flag skips the initial confirmation prompt but does **not** bypass transaction confirmation or Touch ID.
 

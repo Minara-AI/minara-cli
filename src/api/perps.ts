@@ -40,11 +40,6 @@ export function updateLeverage(token: string, dto: UpdateLeverageDto) {
   return post<void>('/v1/tx/perps/update-leverage', { token, body: dto });
 }
 
-/** Get perps account state (balance, equity, margin) */
-export function getAccountState(token: string) {
-  return get<Record<string, unknown>>('/v1/tx/perps/account-state', { token });
-}
-
 /** Get all positions */
 export function getPositions(token: string) {
   return get<PerpsPosition[]>('/v1/tx/perps/positions/all', { token });
@@ -68,6 +63,11 @@ export function getFundRecords(token: string, page: number, limit: number) {
 /** Get equity history chart */
 export function getEquityHistory(token: string) {
   return get<Record<string, unknown>>('/v1/tx/perps/equity-history-chart/all', { token });
+}
+
+/** Get perps account summary (balance, equity, positions, PnL) */
+export function getAccountSummary(token: string) {
+  return get<Record<string, unknown>>('/v1/fully-managed/account-summary', { token });
 }
 
 /** Get all decisions */

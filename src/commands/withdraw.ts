@@ -92,7 +92,7 @@ export const withdrawCommand = new Command('withdraw')
     }
 
     // ── 7. Transaction confirmation & Touch ID ────────────────────────────
-    await requireTransactionConfirmation(`Withdraw ${amount} tokens → ${recipient} · ${chain}`, tokenInfo);
+    await requireTransactionConfirmation(`Withdraw ${amount} tokens → ${recipient} · ${chain}`, tokenInfo, { chain, amount });
     await requireTouchId();
 
     // ── 8. Execute ───────────────────────────────────────────────────────
