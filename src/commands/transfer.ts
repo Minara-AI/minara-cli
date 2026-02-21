@@ -1,9 +1,9 @@
 import { Command } from 'commander';
-import { input, confirm } from '@inquirer/prompts';
+import { input } from '@inquirer/prompts';
 import chalk from 'chalk';
 import { transfer } from '../api/crosschain.js';
 import { requireAuth } from '../config.js';
-import { success, warn, spinner, assertApiOk, selectChain, wrapAction, requireTransactionConfirmation, lookupToken, formatTokenLabel } from '../utils.js';
+import { success, spinner, assertApiOk, selectChain, wrapAction, requireTransactionConfirmation, lookupToken } from '../utils.js';
 import { requireTouchId } from '../touchid.js';
 import { printTxResult } from '../formatters.js';
 
@@ -42,27 +42,14 @@ export const transferCommand = new Command('transfer')
       validate: (v) => (v.length > 5 ? true : 'Enter a valid address'),
     });
 
-    // ── 5. Summary ───────────────────────────────────────────────────────
-    console.log('');
-    console.log(chalk.bold.red('⚠  Transfer Summary:'));
-    console.log(`  Chain     : ${chalk.cyan(chain)}`);
-    console.log(`  Token     : ${formatTokenLabel(tokenInfo)}`);
-    console.log(`  Address   : ${chalk.yellow(tokenInfo.address)}`);
-    console.log(`  Amount    : ${chalk.bold(amount)}`);
-    console.log(`  To        : ${chalk.yellow(recipient)}`);
-    console.log('');
-    warn('Transfers cannot be reversed. Double-check the recipient address!');
-
+    // ── 5. Confirm & Touch ID ──────────────────────────────────────────
     if (!opts.yes) {
-      const confirmed = await confirm({ message: 'Confirm transfer?', default: false });
-      if (!confirmed) {
-        console.log(chalk.dim('Transfer cancelled.'));
-        return;
-      }
+      await requireTransactionConfirmation(
+        `Transfer ${amount} → ${recipient} · ${chain}`,
+        tokenInfo,
+        { chain, amount, destination: recipient },
+      );
     }
-
-    // ── 6. Transaction confirmation & Touch ID ────────────────────────────
-    await requireTransactionConfirmation(`Transfer ${amount} tokens → ${recipient} · ${chain}`, tokenInfo, { chain, amount });
     await requireTouchId();
 
     // ── 7. Execute ───────────────────────────────────────────────────────

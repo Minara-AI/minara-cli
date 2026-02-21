@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { select, confirm, number as numberPrompt } from '@inquirer/prompts';
+import { select, number as numberPrompt } from '@inquirer/prompts';
 import chalk from 'chalk';
 import { getAccount } from '../api/crosschain.js';
 import { getCurrentUser } from '../api/auth.js';
@@ -138,16 +138,12 @@ async function transferSpotToPerps(token: string, opts?: { amount?: string; yes?
     process.exit(1);
   }
 
-  console.log(`\n  Transfer : ${chalk.bold(amount)} USDC  ${chalk.dim('Spot wallet')} → ${chalk.cyan('Perps wallet')}\n`);
   if (!opts?.yes) {
-    const ok = await confirm({ message: 'Confirm transfer from Spot to Perps?', default: true });
-    if (!ok) return;
+    await requireTransactionConfirmation(`Transfer ${amount} USDC from Spot → Perps`, undefined, {
+      amount: `${amount} USDC`,
+      side: 'Spot → Perps',
+    });
   }
-
-  await requireTransactionConfirmation(`Transfer ${amount} USDC from Spot → Perps`, undefined, {
-    amount: `${amount} USDC`,
-    side: 'Spot → Perps',
-  });
   await requireTouchId();
 
   const spin = spinner('Transferring…');

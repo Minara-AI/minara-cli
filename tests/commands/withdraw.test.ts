@@ -20,7 +20,6 @@ vi.mock('../../src/touchid.js', () => ({
 vi.mock('@inquirer/prompts', () => ({
   select: vi.fn(),
   input: vi.fn(),
-  confirm: vi.fn(),
 }));
 
 vi.mock('ora', () => ({
@@ -38,16 +37,16 @@ vi.mock('../../src/utils.js', async (importOriginal) => {
 
 import { requireAuth } from '../../src/config.js';
 import { transfer, getAssets } from '../../src/api/crosschain.js';
-import { select, input, confirm } from '@inquirer/prompts';
-import { lookupToken } from '../../src/utils.js';
+import { select, input } from '@inquirer/prompts';
+import { lookupToken, requireTransactionConfirmation } from '../../src/utils.js';
 
 const mockRequireAuth = vi.mocked(requireAuth);
 const mockTransfer = vi.mocked(transfer);
 const mockGetAssets = vi.mocked(getAssets);
 const mockSelect = vi.mocked(select);
 const mockInput = vi.mocked(input);
-const mockConfirm = vi.mocked(confirm);
 const mockLookupToken = vi.mocked(lookupToken);
+const mockTxConfirm = vi.mocked(requireTransactionConfirmation);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -68,6 +67,8 @@ beforeEach(() => {
   mockLookupToken.mockResolvedValue({
     symbol: 'SOL', name: 'Solana', address: '0xTokenAddr', chain: 'sol',
   });
+
+  mockTxConfirm.mockResolvedValue(undefined);
 });
 
 describe('withdraw command', () => {
@@ -77,7 +78,7 @@ describe('withdraw command', () => {
       .mockResolvedValueOnce('0xToken')
       .mockResolvedValueOnce('1.5')
       .mockResolvedValueOnce('0xExternalWallet');
-    mockConfirm.mockResolvedValueOnce(false);
+    mockTransfer.mockResolvedValue({ success: true, data: { txId: 'tx1' } });
 
     const { withdrawCommand } = await import('../../src/commands/withdraw.js');
 
@@ -94,7 +95,7 @@ describe('withdraw command', () => {
       .mockResolvedValueOnce('0xToken')
       .mockResolvedValueOnce('5')
       .mockResolvedValueOnce('0xDest');
-    mockConfirm.mockResolvedValueOnce(false);
+    mockTransfer.mockResolvedValue({ success: true, data: { txId: 'tx2' } });
 
     const { withdrawCommand } = await import('../../src/commands/withdraw.js');
 
@@ -111,15 +112,24 @@ describe('withdraw command', () => {
       .mockResolvedValueOnce('0xUSDC')
       .mockResolvedValueOnce('100')
       .mockResolvedValueOnce('0xRecipient');
-    mockConfirm.mockResolvedValueOnce(false);
+    mockTxConfirm.mockRejectedValueOnce(new Error('cancelled'));
 
     const { withdrawCommand } = await import('../../src/commands/withdraw.js');
 
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    await withdrawCommand.parseAsync([], { from: 'user' });
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {
+      throw new Error('exit');
+    }) as never);
+
+    await expect(
+      withdrawCommand.parseAsync([], { from: 'user' }),
+    ).rejects.toThrow('exit');
 
     expect(mockTransfer).not.toHaveBeenCalled();
+    exitSpy.mockRestore();
     logSpy.mockRestore();
+    errorSpy.mockRestore();
   });
 
   it('should call transfer API when user confirms', async () => {
@@ -131,7 +141,6 @@ describe('withdraw command', () => {
     mockLookupToken.mockResolvedValueOnce({
       symbol: 'SOL', name: 'Solana', address: '0xTokenAddr', chain: 'sol',
     });
-    mockConfirm.mockResolvedValueOnce(true);
     mockTransfer.mockResolvedValue({ success: true, data: { txId: 'tx123' } });
 
     const { withdrawCommand } = await import('../../src/commands/withdraw.js');
@@ -166,7 +175,7 @@ describe('withdraw command', () => {
     ], { from: 'user' });
 
     expect(mockSelect).not.toHaveBeenCalled();
-    expect(mockConfirm).not.toHaveBeenCalled();
+    expect(mockTxConfirm).not.toHaveBeenCalled();
 
     expect(mockTransfer).toHaveBeenCalledWith('test-token', {
       chain: 'ethereum',
@@ -184,7 +193,6 @@ describe('withdraw command', () => {
       .mockResolvedValueOnce('0xTok')
       .mockResolvedValueOnce('1')
       .mockResolvedValueOnce('0xDest');
-    mockConfirm.mockResolvedValueOnce(true);
     mockTransfer.mockResolvedValue({
       success: false,
       error: { code: 400, message: 'Insufficient balance' },

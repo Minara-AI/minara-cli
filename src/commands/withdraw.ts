@@ -1,9 +1,9 @@
 import { Command } from 'commander';
-import { input, confirm } from '@inquirer/prompts';
+import { input } from '@inquirer/prompts';
 import chalk from 'chalk';
 import { transfer, getAssets } from '../api/crosschain.js';
 import { requireAuth } from '../config.js';
-import { success, warn, spinner, assertApiOk, selectChain, wrapAction, requireTransactionConfirmation, lookupToken, formatTokenLabel } from '../utils.js';
+import { success, spinner, assertApiOk, selectChain, wrapAction, requireTransactionConfirmation, lookupToken } from '../utils.js';
 import { requireTouchId } from '../touchid.js';
 import { printTxResult } from '../formatters.js';
 
@@ -67,32 +67,14 @@ export const withdrawCommand = new Command('withdraw')
       validate: (v) => (v.length > 5 ? true : 'Enter a valid address'),
     });
 
-    // ── 6. Summary ───────────────────────────────────────────────────────
-    console.log('');
-    console.log(chalk.bold.red('⚠  Withdrawal Summary'));
-    console.log(`  Chain       : ${chalk.cyan(chain)}`);
-    console.log(`  Token       : ${formatTokenLabel(tokenInfo)}`);
-    console.log(`  Address     : ${chalk.yellow(tokenInfo.address)}`);
-    console.log(`  Amount      : ${chalk.bold(amount)}`);
-    console.log(`  Destination : ${chalk.yellow(recipient)}`);
-    console.log('');
-    warn('Withdrawals are irreversible. Please double-check the network and address!');
-    warn('Sending to the wrong chain or address will result in permanent loss of funds.');
-    console.log('');
-
+    // ── 6. Confirm & Touch ID ──────────────────────────────────────────
     if (!opts.yes) {
-      const confirmed = await confirm({
-        message: 'I have verified the address and network. Proceed with withdrawal?',
-        default: false,
-      });
-      if (!confirmed) {
-        console.log(chalk.dim('Withdrawal cancelled.'));
-        return;
-      }
+      await requireTransactionConfirmation(
+        `Withdraw ${amount} → ${recipient} · ${chain}`,
+        tokenInfo,
+        { chain, amount, destination: recipient },
+      );
     }
-
-    // ── 7. Transaction confirmation & Touch ID ────────────────────────────
-    await requireTransactionConfirmation(`Withdraw ${amount} tokens → ${recipient} · ${chain}`, tokenInfo, { chain, amount });
     await requireTouchId();
 
     // ── 8. Execute ───────────────────────────────────────────────────────

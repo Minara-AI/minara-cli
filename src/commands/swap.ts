@@ -1,10 +1,10 @@
 import { Command } from 'commander';
-import { input, select, confirm } from '@inquirer/prompts';
+import { input, select } from '@inquirer/prompts';
 import chalk from 'chalk';
 import { swaps, swapsSimulate } from '../api/crosschain.js';
 import { get } from '../api/client.js';
 import { requireAuth } from '../config.js';
-import { success, info, warn, spinner, formatOrderSide, assertApiOk, wrapAction, requireTransactionConfirmation, lookupToken, formatTokenLabel, normalizeChain } from '../utils.js';
+import { success, info, warn, spinner, assertApiOk, wrapAction, requireTransactionConfirmation, lookupToken, normalizeChain } from '../utils.js';
 import { requireTouchId } from '../touchid.js';
 import { printTxResult, printKV } from '../formatters.js';
 import type { SwapSide } from '../types.js';
@@ -87,17 +87,7 @@ export const swapCommand = new Command('swap')
       }
     }
 
-    // ── 5. Summary ───────────────────────────────────────────────────────
-    console.log('');
-    console.log(chalk.bold('Swap Summary:'));
-    console.log(`  Chain   : ${chalk.cyan(chain)}`);
-    console.log(`  Action  : ${formatOrderSide(side)}`);
-    console.log(`  Token   : ${formatTokenLabel(tokenInfo)}`);
-    console.log(`  Address : ${chalk.yellow(tokenInfo.address)}`);
-    console.log(`  Amount  : ${chalk.bold(amount)} ${side === 'buy' ? 'USD' : '(token)'}`);
-    console.log('');
-
-    // ── 6. Dry run ───────────────────────────────────────────────────────
+    // ── 5. Dry run ───────────────────────────────────────────────────────
     if (opts.dryRun) {
       info('Simulating swap (dry-run)…');
       const spin = spinner('Simulating…');
@@ -119,24 +109,14 @@ export const swapCommand = new Command('swap')
       return;
     }
 
-    // ── 7. Confirm ───────────────────────────────────────────────────────
+    // ── 7. Confirm & Touch ID ──────────────────────────────────────────
     if (!opts.yes) {
-      const confirmed = await confirm({
-        message: `Confirm ${side.toUpperCase()} swap?`,
-        default: false,
-      });
-      if (!confirmed) {
-        console.log(chalk.dim('Swap cancelled.'));
-        return;
-      }
+      await requireTransactionConfirmation(
+        `${side.toUpperCase()} swap · ${amount} ${side === 'buy' ? 'USD' : 'tokens'} · ${chain}`,
+        tokenInfo,
+        { chain, side, amount: `${amount} ${side === 'buy' ? 'USD' : '(token)'}` },
+      );
     }
-
-    // ── 8. Transaction confirmation & Touch ID ────────────────────────────
-    await requireTransactionConfirmation(
-      `${side.toUpperCase()} swap · ${amount} ${side === 'buy' ? 'USD' : 'tokens'} · ${chain}`,
-      tokenInfo,
-      { chain, side, amount: `${amount} ${side === 'buy' ? 'USD' : '(token)'}` },
-    );
     await requireTouchId();
 
     // ── 9. Execute ───────────────────────────────────────────────────────

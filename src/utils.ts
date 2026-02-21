@@ -350,7 +350,7 @@ export function formatTokenLabel(token: TokenDisplayInfo): string {
 export async function requireTransactionConfirmation(
   description: string,
   token?: TokenDisplayInfo,
-  details?: { chain?: string; side?: string; amount?: string },
+  details?: { chain?: string; side?: string; amount?: string; destination?: string },
 ): Promise<void> {
   const config = loadConfig();
   if (config.confirmBeforeTransaction === false) return;
@@ -373,6 +373,9 @@ export async function requireTransactionConfirmation(
   }
   if (details?.amount) {
     console.log(chalk.dim('  Amount   : ') + chalk.bold(details.amount));
+  }
+  if (details?.destination) {
+    console.log(chalk.dim('  To       : ') + chalk.yellow(details.destination));
   }
   console.log(chalk.dim(`  Action   : ${description}`));
   console.log('');
