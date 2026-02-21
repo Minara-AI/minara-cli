@@ -13,13 +13,14 @@ Node.js CLI for crypto trading & AI chat. TypeScript strict, ESM (`"type": "modu
 ## Command Pattern
 
 ```typescript
-export const fooCommand = new Command('foo')
-  .action(wrapAction(async (opts) => {
+export const fooCommand = new Command("foo").action(
+  wrapAction(async (opts) => {
     const creds = requireAuth();
     // For fund operations: single confirmation, no duplicate confirm()
     if (!opts.yes) await requireTransactionConfirmation(desc, token, details);
     await requireTouchId();
-  }));
+  }),
+);
 ```
 
 ## Display Rules
@@ -48,4 +49,3 @@ export const fooCommand = new Command('foo')
 
 - Conventional Commits (`feat:`, `fix:`, `chore:`)
 - **`git commit` may fail** with `error: unknown option 'trailer'` due to old Git — use plumbing: `git write-tree` → `git commit-tree` → `git update-ref`
-- npm publish requires OTP (`--otp=<code>`)
