@@ -139,6 +139,7 @@ const statusCmd = new Command('status')
     assertApiOk(userRes, 'Failed to fetch account info');
 
     const user = userRes.data!;
+    const plans: PaymentPlan[] = plansRes.success && plansRes.data ? plansRes.data.plans : [];
 
     if (isRawJson()) {
       console.log(JSON.stringify({
@@ -152,20 +153,44 @@ const statusCmd = new Command('status')
     console.log(chalk.bold('Subscription Status:'));
     console.log('');
 
-    // Try to extract subscription info from various possible response shapes
     const sub = user.subscription as Record<string, unknown> | undefined;
     const userPlan = user.plan as Record<string, unknown> | undefined;
 
     if (sub && Object.keys(sub).length > 0) {
       const planName = sub.planName ?? sub.plan ?? sub.name ?? '—';
-      const status = sub.status as string ?? '—';
-      const interval = sub.interval ?? '—';
+      const planId = sub.planId ?? sub.id;
+
+      // Cross-reference with plans list for interval and credits
+      const matchedPlan = planId != null
+        ? plans.find((p) => p.id === Number(planId) || p._id === String(planId))
+        : plans.find((p) => p.name === planName);
+
+      const status = sub.status as string | undefined;
+      const interval = sub.interval ?? matchedPlan?.interval;
       const cancelAt = sub.cancelAtPeriodEnd;
       const periodEnd = sub.currentPeriodEnd as string | undefined;
 
       console.log(`  ${chalk.dim('Plan'.padEnd(16))} : ${chalk.bold(String(planName))}`);
-      console.log(`  ${chalk.dim('Status'.padEnd(16))} : ${status === 'active' ? chalk.green('Active') : chalk.yellow(String(status))}`);
-      console.log(`  ${chalk.dim('Billing'.padEnd(16))} : ${String(interval)}`);
+
+      if (status) {
+        console.log(`  ${chalk.dim('Status'.padEnd(16))} : ${status === 'active' ? chalk.green('Active') : chalk.yellow(status)}`);
+      } else {
+        console.log(`  ${chalk.dim('Status'.padEnd(16))} : ${chalk.green('Active')}`);
+      }
+
+      if (interval) {
+        const label = interval === 'month' ? 'Monthly' : interval === 'year' ? 'Yearly' : String(interval);
+        console.log(`  ${chalk.dim('Billing'.padEnd(16))} : ${label}`);
+      }
+
+      if (matchedPlan) {
+        console.log(`  ${chalk.dim('Price'.padEnd(16))} : ${formatPrice(matchedPlan)}`);
+        const credits = formatCredits(matchedPlan.rules);
+        if (credits !== '—') {
+          console.log(`  ${chalk.dim('Credits'.padEnd(16))} : ${credits}`);
+        }
+      }
+
       if (periodEnd) {
         console.log(`  ${chalk.dim('Renews On'.padEnd(16))} : ${new Date(periodEnd).toLocaleDateString()}`);
       }
@@ -175,7 +200,6 @@ const statusCmd = new Command('status')
     } else if (userPlan && Object.keys(userPlan).length > 0) {
       printKV(userPlan);
     } else {
-      // No subscription info found — assume free plan
       console.log(`  ${chalk.dim('Plan'.padEnd(16))} : ${chalk.bold('Free')}`);
       console.log(`  ${chalk.dim('Status'.padEnd(16))} : ${chalk.green('Active')}`);
       console.log('');
