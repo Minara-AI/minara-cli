@@ -3,27 +3,33 @@
 import { createRequire } from 'node:module';
 import { Command } from 'commander';
 import chalk from 'chalk';
+import { setRawJson } from './formatters.js';
 
+// Auth & Account
 import { loginCommand } from './commands/login.js';
-
-const require = createRequire(import.meta.url);
-const { version } = require('../package.json') as { version: string };
 import { logoutCommand } from './commands/logout.js';
 import { accountCommand } from './commands/account.js';
-import { assetsCommand } from './commands/assets.js';
+
+// Wallet & Funds
 import { balanceCommand } from './commands/balance.js';
+import { assetsCommand } from './commands/assets.js';
 import { depositCommand } from './commands/deposit.js';
 import { withdrawCommand } from './commands/withdraw.js';
+
+// Trading
 import { swapCommand } from './commands/swap.js';
 import { transferCommand } from './commands/transfer.js';
 import { perpsCommand } from './commands/perps.js';
 import { limitOrderCommand } from './commands/limit-order.js';
 
+// AI, Market, Premium, Config
 import { chatCommand } from './commands/chat.js';
 import { discoverCommand } from './commands/discover.js';
-import { configCommand } from './commands/config.js';
 import { premiumCommand } from './commands/premium.js';
-import { setRawJson } from './formatters.js';
+import { configCommand } from './commands/config.js';
+
+const require = createRequire(import.meta.url);
+const { version } = require('../package.json') as { version: string };
 
 const program = new Command();
 
