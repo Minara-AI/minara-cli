@@ -21,7 +21,8 @@
 - **AI Chat** — Crypto-native AI for on-chain analysis, market research, and DeFi due diligence. Interactive REPL & single-shot queries with `fast` / `quality` / `thinking` modes
 - **Wallet & Balance** — Unified balance view, spot holdings with PnL, perps account overview, deposits and withdrawals
 - **Chain-Abstracted Trading** — Cross-chain swaps with automatic chain detection, perpetual futures, and limit orders. Accepts `$TICKER`, token name, or contract address
-- **Market Discovery** — Trending tokens, Fear & Greed Index, on-chain metrics, and token / stock search
+- **AI Autopilot & Analysis** — Fully managed AI trading strategies for perps, plus on-demand long/short analysis with one-click quick order
+- **Market Discovery** — Trending tokens & stocks, Fear & Greed Index, on-chain metrics, and search
 
 ## Installation
 
@@ -68,7 +69,7 @@ minara discover trending
 
 | Command          | Description                                 |
 | ---------------- | ------------------------------------------- |
-| `minara login`   | Login via device code or email               |
+| `minara login`   | Login via device code or email              |
 | `minara logout`  | Logout and clear local credentials          |
 | `minara account` | View your account info and wallet addresses |
 
@@ -80,14 +81,14 @@ minara login -e user@mail.com # Email verification code
 
 ### Wallet & Funds
 
-| Command               | Description                                     |
-| --------------------- | ----------------------------------------------- |
-| `minara balance`      | Combined USDC/USDT balance across spot and perps |
-| `minara assets`       | Full overview: spot holdings + perps account     |
-| `minara assets spot`  | Spot wallet: portfolio value, cost, PnL, holdings |
-| `minara assets perps` | Perps account: equity, margin, positions         |
+| Command               | Description                                                    |
+| --------------------- | -------------------------------------------------------------- |
+| `minara balance`      | Combined USDC/USDT balance across spot and perps               |
+| `minara assets`       | Full overview: spot holdings + perps account                   |
+| `minara assets spot`  | Spot wallet: portfolio value, cost, PnL, holdings              |
+| `minara assets perps` | Perps account: equity, margin, positions                       |
 | `minara deposit`      | Deposit to spot (view addresses) or perps (direct / from spot) |
-| `minara withdraw`     | Withdraw tokens to an external wallet            |
+| `minara withdraw`     | Withdraw tokens to an external wallet                          |
 
 ```bash
 minara balance                    # Quick total: Spot + Perps available balance
@@ -121,24 +122,34 @@ minara swap --dry-run              # Simulate without executing
 
 ### Perpetual Futures
 
-| Command                     | Description                               |
-| --------------------------- | ----------------------------------------- |
+| Command                     | Description                                           |
+| --------------------------- | ----------------------------------------------------- |
+| `minara perps positions`    | View all open positions with PnL                      |
+| `minara perps order`        | Place an order (interactive builder)                  |
+| `minara perps cancel`       | Cancel open orders                                    |
+| `minara perps leverage`     | Update leverage for a symbol                          |
+| `minara perps trades`       | View trade history (Hyperliquid fills)                |
 | `minara perps deposit`      | Deposit USDC to perps (or use `minara deposit perps`) |
-| `minara perps withdraw`     | Withdraw USDC from perps account          |
-| `minara perps positions`    | View all open positions                   |
-| `minara perps order`        | Place an order (interactive builder)      |
-| `minara perps cancel`       | Cancel open orders                        |
-| `minara perps leverage`     | Update leverage for a symbol              |
-| `minara perps trades`       | View completed trade history              |
-| `minara perps fund-records` | View fund deposit/withdrawal records      |
+| `minara perps withdraw`     | Withdraw USDC from perps account                      |
+| `minara perps fund-records` | View fund deposit/withdrawal records                  |
+| `minara perps autopilot`    | Manage AI autopilot trading strategy (on/off/config)  |
+| `minara perps ask`          | AI long/short analysis with quick order               |
 
 ```bash
+minara perps positions             # List positions with equity, margin, PnL
+minara perps order                 # Interactive: symbol selector → side → size → confirm
+minara perps leverage              # Interactive: shows max leverage per asset
+minara perps trades                # Recent fills from Hyperliquid (default 7 days)
+minara perps trades -d 30          # Last 30 days of trade history
 minara perps deposit -a 100        # Deposit 100 USDC to perps
 minara perps withdraw -a 50        # Withdraw 50 USDC from perps
-minara perps positions             # List current positions
-minara perps order                 # Interactive: choose symbol, side, size, price
-minara perps leverage              # Interactive: set leverage for a trading pair
+minara perps autopilot             # Toggle AI autopilot, create/update strategy
+minara perps ask                   # AI analysis → optional quick order
 ```
+
+> **Autopilot:** When autopilot is ON, manual order placement (`minara perps order`) is blocked to prevent conflicts with AI-managed trades. Turn off autopilot first via `minara perps autopilot`.
+>
+> **Ask AI → Quick Order:** After the AI analysis, you can instantly place a market order based on the recommended direction, entry price, and position size — no need to re-enter parameters.
 
 ### Limit Orders
 

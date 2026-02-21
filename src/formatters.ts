@@ -313,6 +313,66 @@ export const POSITION_COLUMNS: ColumnDef[] = [
   { key: 'marginUsed', label: 'Margin', format: (v) => formatValue(v, 'price') },
 ];
 
+/** Completed perps trades */
+export const TRADE_COLUMNS: ColumnDef[] = [
+  { key: 'symbol', label: 'Symbol', format: (v) => chalk.bold(String(v ?? '—').replace('USDT', '')) },
+  { key: 'side', label: 'Side', format: (v) => {
+    const s = String(v ?? '').toLowerCase();
+    return s === 'long' || s === 'buy' ? chalk.green.bold(String(v)) : chalk.red.bold(String(v));
+  }},
+  { key: 'quantity', label: 'Size', format: (v) => {
+    const n = Number(v);
+    return isNaN(n) ? String(v ?? '—') : n.toLocaleString('en-US', { maximumFractionDigits: 4 });
+  }},
+  { key: 'open_price', label: 'Open', format: (v) => formatValue(v, 'price') },
+  { key: 'close_price', label: 'Close', format: (v) => formatValue(v, 'price') },
+  { key: 'pnl', label: 'PnL', format: (v) => {
+    if (!v && v !== 0) return chalk.dim('—');
+    const n = Number(v);
+    const color = n >= 0 ? chalk.green : chalk.red;
+    return color(`${n >= 0 ? '+' : ''}$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+  }},
+  { key: 'duration', label: 'Duration' },
+  { key: 'close_time', label: 'Closed', format: (v) => {
+    if (!v) return chalk.dim('—');
+    const d = new Date(String(v));
+    return isNaN(d.getTime()) ? String(v) : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  }},
+];
+
+/** Hyperliquid user fills (from public API) */
+export const FILL_COLUMNS: ColumnDef[] = [
+  { key: 'coin', label: 'Asset', format: (v) => chalk.bold(String(v ?? '—')) },
+  { key: 'dir', label: 'Direction', format: (v) => {
+    const s = String(v ?? '');
+    if (/open.*long|buy/i.test(s)) return chalk.green.bold(s);
+    if (/close.*short/i.test(s)) return chalk.green(s);
+    if (/open.*short|sell/i.test(s)) return chalk.red.bold(s);
+    if (/close.*long/i.test(s)) return chalk.red(s);
+    return s;
+  }},
+  { key: 'sz', label: 'Size', format: (v) => {
+    const n = Number(v);
+    return isNaN(n) ? String(v ?? '—') : n.toLocaleString('en-US', { maximumFractionDigits: 4 });
+  }},
+  { key: 'px', label: 'Price', format: (v) => formatValue(v, 'price') },
+  { key: 'closedPnl', label: 'Realized PnL', format: (v) => {
+    const n = Number(v ?? 0);
+    if (n === 0) return chalk.dim('—');
+    const color = n >= 0 ? chalk.green : chalk.red;
+    return color(`${n >= 0 ? '+' : ''}$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+  }},
+  { key: 'fee', label: 'Fee', format: (v) => {
+    const n = Number(v ?? 0);
+    return n !== 0 ? `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}` : chalk.dim('—');
+  }},
+  { key: 'time', label: 'Time', format: (v) => {
+    if (!v) return chalk.dim('—');
+    const d = new Date(Number(v));
+    return isNaN(d.getTime()) ? String(v) : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  }},
+];
+
 /** Limit orders (LimitOrderInfo[]) */
 export const LIMIT_ORDER_COLUMNS: ColumnDef[] = [
   { key: 'id', label: 'ID', format: (v) => chalk.dim(truncate(String(v ?? ''), 12)) },
