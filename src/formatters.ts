@@ -349,6 +349,15 @@ export const TOKEN_COLUMNS: ColumnDef[] = [
   { key: 'marketCap', label: 'Market Cap', format: compactUsd },
 ];
 
+export const STOCK_COLUMNS: ColumnDef[] = [
+  { key: 'symbol', label: 'Symbol', format: (v) => chalk.bold(String(v ?? '—')) },
+  { key: 'name', label: 'Name' },
+  { key: 'price', label: 'Price', format: (v) => formatValue(v, 'price') },
+  { key: 'priceChange24H', label: '24h %', format: (v) => formatValue(v, 'change') },
+  { key: 'volume24H', label: 'Volume 24h', format: compactUsd },
+  { key: 'marketCap', label: 'Market Cap', format: compactUsd },
+];
+
 // ═══════════════════════════════════════════════════════════════════════════
 //  Specialised display helpers for discover commands
 // ═══════════════════════════════════════════════════════════════════════════
