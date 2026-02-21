@@ -1,6 +1,6 @@
 {
   "name": "minara",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "CLI client for Minara.ai — login, trade, deposit/withdraw, chat and more from your terminal.",
   "type": "module",
   "main": "dist/index.js",
