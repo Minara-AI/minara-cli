@@ -19,7 +19,7 @@
 ## Features
 
 - **AI Chat** — Crypto-native AI for on-chain analysis, market research, and DeFi due diligence. Interactive REPL & single-shot queries with `fast` / `quality` / `thinking` modes
-- **Wallet & Balance** — Unified balance view, spot holdings with PnL, perps account overview, deposits and withdrawals
+- **Wallet & Balance** — Unified balance view, spot holdings with PnL, perps account overview, deposits, withdrawals, and credit card on-ramp via MoonPay
 - **Chain-Abstracted Trading** — Cross-chain swaps with automatic chain detection, perpetual futures, and limit orders. Accepts `$TICKER`, token name, or contract address
 - **AI Autopilot & Analysis** — Fully managed AI trading strategies for perps, plus on-demand long/short analysis with one-click quick order
 - **Market Discovery** — Trending tokens & stocks, Fear & Greed Index, on-chain metrics, and search
@@ -87,7 +87,8 @@ minara login -e user@mail.com # Email verification code
 | `minara assets`       | Full overview: spot holdings + perps account                   |
 | `minara assets spot`  | Spot wallet: portfolio value, cost, PnL, holdings              |
 | `minara assets perps` | Perps account: equity, margin, positions                       |
-| `minara deposit`      | Deposit to spot (view addresses) or perps (direct / from spot) |
+| `minara deposit`      | Deposit to spot, perps, or buy crypto with credit card         |
+| `minara deposit buy`  | Buy crypto with credit card via MoonPay                        |
 | `minara withdraw`     | Withdraw tokens to an external wallet                          |
 
 ```bash
@@ -95,9 +96,10 @@ minara balance                    # Quick total: Spot + Perps available balance
 minara assets                     # Full overview (spot + perps)
 minara assets spot                # Spot wallet with PnL breakdown
 minara assets perps               # Perps equity, margin, positions
-minara deposit                    # Interactive: Spot (addresses) or Perps (address / transfer)
+minara deposit                    # Interactive: Spot / Perps / Buy with credit card
 minara deposit spot               # Show spot wallet deposit addresses (EVM + Solana)
 minara deposit perps              # Perps: show Arbitrum deposit address, or transfer from Spot → Perps
+minara deposit buy                # Buy crypto with credit card via MoonPay (opens browser)
 minara withdraw -c solana -t '$SOL' -a 10 --to <address>
 minara withdraw                   # Interactive mode (accepts ticker or address)
 ```

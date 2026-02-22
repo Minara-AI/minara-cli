@@ -1,4 +1,4 @@
-import { get, del } from './client.js';
+import { get, post, del } from './client.js';
 import type { PlansResponse, CheckoutSession, CryptoCheckout } from '../types.js';
 
 /** Get all subscription plans and credit packages */
@@ -45,4 +45,9 @@ export function cryptoCheckoutPackage(token: string, packageId: string) {
 /** Cancel current subscription */
 export function cancelSubscription(token: string) {
   return del<Record<string, unknown>>('/payment/subscription', { token });
+}
+
+/** Sign a MoonPay widget URL (backend appends HMAC signature). */
+export function getMoonPaySignature(token: string, url: string) {
+  return post<{ signature: string }>('/payment/moonpay/signature', { token, body: { url } });
 }
