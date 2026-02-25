@@ -7,7 +7,7 @@ import {
   VLLM_BASE_URL, VLLM_PORT, VLLM_LOG,
   getInstalledIds, getActiveId, getModelDef, setActiveModel,
   findPython, isServerRunning, startServerAttached, startServerDetached,
-  stopServer, waitForServer, getServerInfo,
+  stopServer, waitForServer, getServerInfo, resolveModelPath,
 } from '../local-models.js';
 import { installFlow, uninstallFlow, listModels } from './install.js';
 import { error, info, success, warn, spinner, wrapAction } from '../utils.js';
@@ -125,9 +125,13 @@ async function loadFlow(): Promise<void> {
   if (!model) { error('Model not found.'); return; }
   setActiveModel(modelId);
 
+  const modelPath = resolveModelPath(py, model);
+  if (!modelPath) { error('Could not resolve model path from HuggingFace cache.'); return; }
+
   info(`Loading ${chalk.bold(model.name)} in background…`);
+  console.log(chalk.dim(`  Path: ${modelPath}`));
   console.log(chalk.dim(`  Logs: ${VLLM_LOG}`));
-  startServerDetached(py, model.id, model.hfRepo);
+  startServerDetached(py, model.id, modelPath);
 
   const spin = spinner('Starting vLLM server…');
   const ready = await waitForServer();
@@ -197,17 +201,25 @@ async function chatFlow(messageArg?: string): Promise<void> {
   if (!model) model = getModelDef(getActiveId() ?? installed[0]);
   if (!model) { error('Model not found.'); return; }
 
+  // vLLM API requires the model name that was used to start the server
+  // (which is the resolved local path when subdir is used)
+  let vllmModelName = srv?.hfRepo ?? model.hfRepo;
+
   // If server is not running, start an attached session
   let attachedProc: ChildProcess | null = null;
   if (!running) {
     const py = findPython();
     if (!py) { error('Python 3 is required to run local models.'); return; }
 
+    const modelPath = resolveModelPath(py, model);
+    if (!modelPath) { error('Could not resolve model path from HuggingFace cache.'); return; }
+    vllmModelName = modelPath;
+
     info(`No loaded model. Starting ${chalk.bold(model.name)} for this session…`);
     console.log(chalk.dim('  Tip: use `minara private load` to keep the server running between chats.'));
     console.log('');
 
-    attachedProc = startServerAttached(py, model.hfRepo);
+    attachedProc = startServerAttached(py, modelPath);
 
     let stderrBuf = '';
     attachedProc.stderr?.on('data', (d: Buffer) => { stderrBuf += d.toString(); });
@@ -244,7 +256,7 @@ async function chatFlow(messageArg?: string): Promise<void> {
   try {
     // Single-shot mode
     if (messageArg) {
-      await sendAndPrint(model.hfRepo, messageArg);
+      await sendAndPrint(vllmModelName, messageArg);
       return;
     }
 
@@ -296,7 +308,7 @@ async function chatFlow(messageArg?: string): Promise<void> {
       history.push({ role: 'user', content: userMsg });
       rl.pause();
       try {
-        const reply = await sendAndPrint(model.hfRepo, userMsg, history);
+        const reply = await sendAndPrint(vllmModelName, userMsg, history);
         if (reply) history.push({ role: 'assistant', content: reply });
       } finally {
         rl.resume();

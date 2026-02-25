@@ -5,6 +5,7 @@ import {
   markInstalled, markUninstalled,
   findPython, hasVllm, hasHfHub,
   pipInstall, downloadModel, clearModelCache,
+  isAppleSilicon, getArchLabel, fixNativeDeps,
 } from '../local-models.js';
 import { error, info, success, warn, spinner } from '../utils.js';
 
@@ -117,6 +118,7 @@ function ensurePython(): string | null {
     console.log(chalk.dim('  https://www.python.org/downloads/'));
     return null;
   }
+  info(`Python found · ${chalk.dim(getArchLabel())}`);
   return py;
 }
 
@@ -147,6 +149,17 @@ async function ensureDeps(py: string): Promise<boolean> {
       return false;
     }
     success('huggingface_hub installed');
+  }
+
+  // On Apple Silicon, scan all native extensions and fix x86_64 mismatches
+  if (isAppleSilicon()) {
+    info('Scanning native extensions for arm64 compatibility…');
+    const fixed = fixNativeDeps(py);
+    if (fixed.length > 0) {
+      success(`Fixed ${fixed.length} package(s) for arm64: ${chalk.dim(fixed.join(', '))}`);
+    } else {
+      success('All native extensions are arm64 compatible');
+    }
   }
 
   return true;
