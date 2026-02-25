@@ -20,8 +20,7 @@ function ensureDir(): void {
 
 export function saveCredentials(creds: Credentials): void {
   ensureDir();
-  writeFileSync(CREDENTIALS_FILE, JSON.stringify(creds, null, 2), 'utf-8');
-  chmodSync(CREDENTIALS_FILE, 0o600);
+  writeFileSync(CREDENTIALS_FILE, JSON.stringify(creds, null, 2), { encoding: 'utf-8', mode: 0o600 });
 }
 
 export function loadCredentials(): Credentials | null {
@@ -79,7 +78,7 @@ export function saveConfig(config: Partial<AppConfig>): void {
   ensureDir();
   const current = loadConfig();
   const merged = { ...current, ...config };
-  writeFileSync(CONFIG_FILE, JSON.stringify(merged, null, 2), 'utf-8');
+  writeFileSync(CONFIG_FILE, JSON.stringify(merged, null, 2), { encoding: 'utf-8', mode: 0o600 });
 }
 
 export function getMinaraDir(): string {

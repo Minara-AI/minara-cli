@@ -3,7 +3,7 @@ import { input } from '@inquirer/prompts';
 import chalk from 'chalk';
 import { transfer, getAssets } from '../api/crosschain.js';
 import { requireAuth } from '../config.js';
-import { success, spinner, assertApiOk, selectChain, wrapAction, requireTransactionConfirmation, lookupToken } from '../utils.js';
+import { success, spinner, assertApiOk, selectChain, wrapAction, requireTransactionConfirmation, lookupToken, validateAddress } from '../utils.js';
 import { requireTouchId } from '../touchid.js';
 import { printTxResult } from '../formatters.js';
 
@@ -64,7 +64,7 @@ export const withdrawCommand = new Command('withdraw')
     // ── 5. Destination ───────────────────────────────────────────────────
     const recipient: string = opts.to ?? await input({
       message: 'Destination address (your external wallet):',
-      validate: (v) => (v.length > 5 ? true : 'Enter a valid address'),
+      validate: (v) => validateAddress(v, chain),
     });
 
     // ── 6. Confirm & Touch ID ──────────────────────────────────────────

@@ -3,7 +3,7 @@ import { input, select, confirm, number as numberPrompt } from '@inquirer/prompt
 import chalk from 'chalk';
 import * as perpsApi from '../api/perps.js';
 import { requireAuth } from '../config.js';
-import { success, info, warn, spinner, assertApiOk, formatOrderSide, wrapAction, requireTransactionConfirmation } from '../utils.js';
+import { success, info, warn, spinner, assertApiOk, formatOrderSide, wrapAction, requireTransactionConfirmation, validateAddress } from '../utils.js';
 import { requireTouchId } from '../touchid.js';
 import { printTxResult, printTable, printKV, POSITION_COLUMNS, FILL_COLUMNS } from '../formatters.js';
 import type { PerpsOrder } from '../types.js';
@@ -59,7 +59,7 @@ const withdrawCmd = new Command('withdraw')
 
     const toAddress: string = opts.to ?? await input({
       message: 'Destination address:',
-      validate: (v) => (v.length > 5 ? true : 'Enter a valid address'),
+      validate: (v) => validateAddress(v, 'arbitrum'),
     });
 
     console.log(`\n  Withdraw : ${chalk.bold(amount)} USDC → ${chalk.yellow(toAddress)}\n`);

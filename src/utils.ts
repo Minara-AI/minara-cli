@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import ora, { type Ora } from 'ora';
-import { exec } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { platform } from 'node:os';
 import { select, confirm } from '@inquirer/prompts';
 import type { ApiResponse, Chain } from './types.js';
@@ -390,19 +390,56 @@ export async function requireTransactionConfirmation(
   }
 }
 
+// ─── Address validation ──────────────────────────────────────────────────────
+
+const SOLANA_ADDR_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+const EVM_ADDR_RE = /^0x[0-9a-fA-F]{40}$/;
+
+/**
+ * Validate a blockchain address based on the target chain.
+ * Returns `true` on success or an error message string on failure.
+ */
+export function validateAddress(address: string, chain?: string): true | string {
+  const v = address.trim();
+  if (!v) return 'Address is required';
+
+  const c = chain?.toLowerCase();
+  if (c === 'solana' || c === 'sol' || c === '101') {
+    if (!SOLANA_ADDR_RE.test(v)) return 'Invalid Solana address (expected base58, 32–44 chars)';
+    return true;
+  }
+  if (c && c !== 'solana') {
+    if (!EVM_ADDR_RE.test(v)) return 'Invalid EVM address (expected 0x + 40 hex chars)';
+    return true;
+  }
+  // Unknown chain — accept either format
+  if (!SOLANA_ADDR_RE.test(v) && !EVM_ADDR_RE.test(v)) {
+    return 'Invalid address format';
+  }
+  return true;
+}
+
 // ─── Browser ──────────────────────────────────────────────────────────────────
 
 /** Open a URL in the user's default browser (cross-platform). */
 export function openBrowser(url: string): void {
   const plat = platform();
-  const cmd =
-    plat === 'darwin'  ? 'open' :
-    plat === 'win32'   ? 'start ""' :
-    /* linux / others */ 'xdg-open';
+  let cmd: string;
+  let args: string[];
 
-  exec(`${cmd} "${url}"`, (err) => {
+  if (plat === 'darwin') {
+    cmd = 'open';
+    args = [url];
+  } else if (plat === 'win32') {
+    cmd = 'cmd';
+    args = ['/c', 'start', '', url];
+  } else {
+    cmd = 'xdg-open';
+    args = [url];
+  }
+
+  execFile(cmd, args, (err) => {
     if (err) {
-      // Don't crash — the user can manually open the URL
       console.log(chalk.dim(`Could not open browser automatically. Please open this URL manually:`));
       console.log(chalk.cyan(url));
     }

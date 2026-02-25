@@ -44,7 +44,13 @@ export const configCommand = new Command('config')
           message: 'Base URL:',
           default: config.baseUrl,
           validate: (v) => {
-            try { new URL(v); return true; } catch { return 'Please enter a valid URL'; }
+            try {
+              const u = new URL(v);
+              if (u.protocol !== 'https:' && u.hostname !== 'localhost' && u.hostname !== '127.0.0.1') {
+                return 'Base URL must use HTTPS (HTTP allowed only for localhost)';
+              }
+              return true;
+            } catch { return 'Please enter a valid URL'; }
           },
         });
         saveConfig({ baseUrl: url });

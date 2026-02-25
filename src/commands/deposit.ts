@@ -66,7 +66,7 @@ async function showSpotDeposit(token: string): Promise<void> {
 
 // ─── moonpay (credit card on-ramp) ───────────────────────────────────────
 
-const MOONPAY_PK = 'pk_live_yIf64w79W6ufwip4j51PWbymdwGtI';
+const MOONPAY_PK = process.env.MOONPAY_PK ?? 'pk_live_yIf64w79W6ufwip4j51PWbymdwGtI';
 
 const MOONPAY_CURRENCIES: { name: string; code: string; network: string }[] = [
   { name: 'USDC (Base)',      code: 'usdc_base',      network: 'base' },

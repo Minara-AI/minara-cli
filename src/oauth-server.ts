@@ -38,6 +38,17 @@ export interface OAuthServer {
   close: () => void;
 }
 
+// ── Helpers ───────────────────────────────────────────────────────────────
+
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 // ── HTML responses ────────────────────────────────────────────────────────
 
 const SUCCESS_HTML = `<!DOCTYPE html>
@@ -77,7 +88,7 @@ const ERROR_HTML = (msg: string) => `<!DOCTYPE html>
 <body>
   <div class="card">
     <h1>✖ Login Failed</h1>
-    <p>${msg}</p>
+    <p>${escapeHtml(msg)}</p>
     <p>Please return to the terminal and try again.</p>
   </div>
 </body>
