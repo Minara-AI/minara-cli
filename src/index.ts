@@ -4,6 +4,7 @@ import { createRequire } from 'node:module';
 import { Command } from 'commander';
 import chalk from 'chalk';
 import { setRawJson } from './formatters.js';
+import { checkForUpdate } from './update-check.js';
 
 // Auth & Account
 import { loginCommand } from './commands/login.js';
@@ -30,6 +31,9 @@ import { configCommand } from './commands/config.js';
 
 const require = createRequire(import.meta.url);
 const { version } = require('../package.json') as { version: string };
+
+// Fire update check early (non-blocking); result printed after command completes
+const updateCheckPromise = checkForUpdate(version);
 
 const program = new Command();
 
@@ -85,8 +89,13 @@ program.action(() => {
   program.outputHelp();
 });
 
-program.parseAsync(process.argv).catch((err: unknown) => {
-  const message = err instanceof Error ? err.message : String(err);
-  console.error(chalk.red('Error:'), message);
-  process.exit(1);
-});
+program.parseAsync(process.argv)
+  .catch((err: unknown) => {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(chalk.red('Error:'), message);
+    process.exit(1);
+  })
+  .finally(async () => {
+    const notice = await updateCheckPromise;
+    if (notice) console.log(notice);
+  });
