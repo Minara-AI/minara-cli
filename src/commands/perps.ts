@@ -207,7 +207,7 @@ const orderCmd = new Command('order')
       marketPx = assetMeta?.markPx;
       if (marketPx && marketPx > 0) {
         const slippagePx = isBuy ? marketPx * 1.01 : marketPx * 0.99;
-        limitPx = slippagePx.toPrecision(6);
+        limitPx = slippagePx.toPrecision(5);
         info(`Market order at ~$${marketPx}`);
       } else {
         warn(`Could not fetch current price for ${asset}. Enter the approximate market price.`);
@@ -276,45 +276,145 @@ const cancelCmd = new Command('cancel')
   .action(wrapAction(async (opts) => {
     const creds = requireAuth();
 
-    const metaSpin = spinner('Fetching assets…');
-    const assets = await perpsApi.getAssetMeta();
-    metaSpin.stop();
+    const spin = spinner('Fetching open orders…');
+    const address = await perpsApi.getPerpsAddress(creds.accessToken);
+    if (!address) {
+      spin.stop();
+      warn('Could not find your perps wallet address. Make sure your perps account is initialized.');
+      return;
+    }
+    const openOrders = await perpsApi.getOpenOrders(address);
+    spin.stop();
 
-    let asset: string;
-    if (assets.length > 0) {
-      asset = await select({
-        message: 'Asset to cancel:',
-        choices: assets.map((a) => {
-          const pxStr = a.markPx > 0 ? `$${a.markPx.toLocaleString()}` : '';
-          return {
-            name: `${a.name.padEnd(6)} ${chalk.dim(pxStr.padStart(12))}  ${chalk.dim(`max ${a.maxLeverage}x`)}`,
-            value: a.name,
-          };
-        }),
-      });
-    } else {
-      asset = await input({ message: 'Asset symbol to cancel (e.g. BTC):' });
+    if (openOrders.length === 0) {
+      info('No open orders to cancel.');
+      return;
     }
 
-    const oid = await input({
-      message: 'Order ID (oid):',
-      validate: (v) => {
-        const n = parseInt(v, 10);
-        return isNaN(n) ? 'Please enter a valid numeric order ID' : true;
-      },
+    const selected = await select({
+      message: 'Select order to cancel:',
+      choices: openOrders.map((o) => {
+        const side = o.side === 'B' ? chalk.green('BUY') : chalk.red('SELL');
+        const px = `$${Number(o.limitPx).toLocaleString()}`;
+        return {
+          name: `${chalk.bold(o.coin.padEnd(6))} ${side}  ${o.sz} @ ${chalk.yellow(px)}  ${chalk.dim(`oid:${o.oid}`)}`,
+          value: o,
+        };
+      }),
     });
 
     if (!opts.yes) {
-      const ok = await confirm({ message: `Cancel order ${oid} for ${asset}?`, default: false });
+      const sideLabel = selected.side === 'B' ? 'BUY' : 'SELL';
+      const ok = await confirm({
+        message: `Cancel ${sideLabel} ${selected.coin} ${selected.sz} @ $${Number(selected.limitPx).toLocaleString()}?`,
+        default: false,
+      });
       if (!ok) return;
     }
 
-    const spin = spinner('Cancelling…');
-    const res = await perpsApi.cancelOrders(creds.accessToken, { cancels: [{ a: asset, o: parseInt(oid, 10) }] });
-    spin.stop();
+    const cancelSpin = spinner('Cancelling…');
+    const res = await perpsApi.cancelOrders(creds.accessToken, {
+      cancels: [{ a: selected.coin, o: selected.oid }],
+    });
+    cancelSpin.stop();
     assertApiOk(res, 'Order cancellation failed');
     success('Order cancelled');
     printTxResult(res.data);
+  }));
+
+// ─── close position ─────────────────────────────────────────────────────
+
+const closeCmd = new Command('close')
+  .description('Close an open perps position at market price')
+  .option('-y, --yes', 'Skip confirmation')
+  .action(wrapAction(async (opts) => {
+    const creds = requireAuth();
+
+    const spin = spinner('Fetching positions…');
+    const res = await perpsApi.getAccountSummary(creds.accessToken);
+    const assets = await perpsApi.getAssetMeta();
+    spin.stop();
+
+    if (!res.success || !res.data) {
+      warn('Could not fetch positions.');
+      return;
+    }
+
+    const d = res.data as Record<string, unknown>;
+    const positions = Array.isArray(d.positions) ? d.positions as Record<string, unknown>[] : [];
+
+    if (positions.length === 0) {
+      info('No open positions to close.');
+      return;
+    }
+
+    const fmt = (n: number) => `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const pnlFmt = (n: number) => {
+      const color = n >= 0 ? chalk.green : chalk.red;
+      return color(`${n >= 0 ? '+' : ''}${fmt(n)}`);
+    };
+
+    const selected = await select({
+      message: 'Select position to close:',
+      choices: positions.map((p) => {
+        const symbol = String(p.symbol ?? '');
+        const side = String(p.side ?? '').toLowerCase();
+        const sideLabel = side === 'long' || side === 'buy' ? chalk.green('LONG') : chalk.red('SHORT');
+        const sz = String(p.size ?? '');
+        const entry = fmt(Number(p.entryPrice ?? 0));
+        const pnl = pnlFmt(Number(p.unrealizedPnl ?? 0));
+        return {
+          name: `${chalk.bold(symbol.padEnd(6))} ${sideLabel}  ${sz} @ ${chalk.yellow(entry)}  PnL: ${pnl}`,
+          value: p,
+        };
+      }),
+    });
+
+    const symbol = String(selected.symbol ?? '');
+    const side = String(selected.side ?? '').toLowerCase();
+    const sz = String(selected.size ?? '');
+    const isLong = side === 'long' || side === 'buy';
+    const isBuy = !isLong;
+
+    const assetMeta = assets.find((a) => a.name.toUpperCase() === symbol.toUpperCase());
+    const marketPx = assetMeta?.markPx;
+
+    if (!marketPx || marketPx <= 0) {
+      warn(`Could not fetch current price for ${symbol}. Cannot place market close order.`);
+      return;
+    }
+
+    const slippagePx = isBuy ? marketPx * 1.01 : marketPx * 0.99;
+    const limitPx = slippagePx.toPrecision(5);
+
+    const order: PerpsOrder = {
+      a: symbol,
+      b: isBuy,
+      p: limitPx,
+      s: sz,
+      r: true,
+      t: { trigger: { triggerPx: String(marketPx), tpsl: 'tp', isMarket: true } },
+    };
+
+    const sideLabel = isLong ? 'LONG' : 'SHORT';
+    console.log('');
+    console.log(chalk.bold('Close Position:'));
+    console.log(`  Asset    : ${chalk.bold(symbol)}`);
+    console.log(`  Position : ${formatOrderSide(isLong ? 'buy' : 'sell')} ${sz}`);
+    console.log(`  Close    : ${formatOrderSide(isBuy ? 'buy' : 'sell')} (market ~$${marketPx.toLocaleString()})`);
+    console.log('');
+
+    if (!opts.yes) {
+      await requireTransactionConfirmation(`Close ${sideLabel} ${symbol} · size ${sz} @ Market (~$${marketPx.toLocaleString()})`);
+    }
+    await requireTouchId();
+
+    const orderSpin = spinner('Closing position…');
+    const orderRes = await perpsApi.placeOrders(creds.accessToken, { orders: [order], grouping: 'na' });
+    orderSpin.stop();
+    assertApiOk(orderRes, 'Close position failed');
+    success(`Position closed — ${sideLabel} ${symbol} ${sz}`);
+    printTxResult(orderRes.data);
   }));
 
 // ─── leverage ────────────────────────────────────────────────────────────
@@ -701,7 +801,7 @@ const askCmd = new Command('ask')
     const order: PerpsOrder = {
       a: symbol,
       b: isBuy,
-      p: slippagePx.toPrecision(6),
+      p: slippagePx.toPrecision(5),
       s: String(size),
       r: false,
       t: { trigger: { triggerPx: String(entryPrice), tpsl: 'tp', isMarket: true } },
@@ -814,6 +914,7 @@ export const perpsCommand = new Command('perps')
   .addCommand(positionsCmd)
   .addCommand(orderCmd)
   .addCommand(cancelCmd)
+  .addCommand(closeCmd)
   .addCommand(leverageCmd)
   .addCommand(tradesCmd)
   .addCommand(depositCmd)
@@ -833,6 +934,7 @@ export const perpsCommand = new Command('perps')
       choices: [
         { name: 'View positions', value: 'positions' },
         { name: 'Place order', value: 'order' },
+        { name: 'Close position', value: 'close' },
         { name: 'Cancel order', value: 'cancel' },
         { name: 'Update leverage', value: 'leverage' },
         { name: 'View trade history', value: 'trades' },

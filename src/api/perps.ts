@@ -161,6 +161,30 @@ export async function getAssetMeta(): Promise<HlAssetInfo[]> {
   }
 }
 
+export interface HlOpenOrder {
+  coin: string;
+  limitPx: string;
+  oid: number;
+  side: string;   // 'A' (sell) or 'B' (buy)
+  sz: string;
+  timestamp: number;
+}
+
+/** Fetch user's open orders from Hyperliquid. */
+export async function getOpenOrders(address: string): Promise<HlOpenOrder[]> {
+  try {
+    const res = await fetch('https://api.hyperliquid.xyz/info', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'openOrders', user: address }),
+    });
+    const data = await res.json();
+    return Array.isArray(data) ? data as HlOpenOrder[] : [];
+  } catch {
+    return [];
+  }
+}
+
 export interface HlFill {
   coin: string;
   px: string;

@@ -128,7 +128,8 @@ minara swap --dry-run              # Simulate without executing
 | --------------------------- | ----------------------------------------------------- |
 | `minara perps positions`    | View all open positions with PnL                      |
 | `minara perps order`        | Place an order (interactive builder)                  |
-| `minara perps cancel`       | Cancel open orders                                    |
+| `minara perps close`        | Close an open position at market price                |
+| `minara perps cancel`       | Cancel open orders (selectable list)                  |
 | `minara perps leverage`     | Update leverage for a symbol                          |
 | `minara perps trades`       | View trade history (Hyperliquid fills)                |
 | `minara perps deposit`      | Deposit USDC to perps (or use `minara deposit perps`) |
@@ -140,6 +141,8 @@ minara swap --dry-run              # Simulate without executing
 ```bash
 minara perps positions             # List positions with equity, margin, PnL
 minara perps order                 # Interactive: symbol selector → side → size → confirm
+minara perps close                 # Close a position: pick from list → market close
+minara perps cancel                # Cancel an order: pick from open orders list
 minara perps leverage              # Interactive: shows max leverage per asset
 minara perps trades                # Recent fills from Hyperliquid (default 7 days)
 minara perps trades -d 30          # Last 30 days of trade history
@@ -149,6 +152,10 @@ minara perps autopilot             # Toggle AI autopilot, create/update strategy
 minara perps ask                   # AI analysis → optional quick order
 ```
 
+> **Close position:** Select an open position from the list, and it will be closed at market price with a reduce-only order in the opposite direction — no manual price or size entry needed.
+>
+> **Cancel order:** Open orders are fetched from Hyperliquid and shown as a selectable list with coin, side, size, and price — no need to look up order IDs.
+>
 > **Autopilot:** When autopilot is ON, manual order placement (`minara perps order`) is blocked to prevent conflicts with AI-managed trades. Turn off autopilot first via `minara perps autopilot`.
 >
 > **Ask AI → Quick Order:** After the AI analysis, you can instantly place a market order based on the recommended direction, entry price, and position size — no need to re-enter parameters.
@@ -303,7 +310,7 @@ Minara CLI supports macOS Touch ID to protect all fund-related operations. When 
 minara config                     # Select "Touch ID" to enable / disable
 ```
 
-**Protected operations:** `withdraw`, `transfer`, `swap`, `deposit` (Spot→Perps transfer), `perps deposit`, `perps withdraw`, `perps order`, `limit-order create`
+**Protected operations:** `withdraw`, `transfer`, `swap`, `deposit` (Spot→Perps transfer), `perps deposit`, `perps withdraw`, `perps order`, `perps close`, `limit-order create`
 
 > **Note:** Touch ID requires macOS with Touch ID hardware. The `--yes` flag skips the initial confirmation prompt but does **not** bypass transaction confirmation or Touch ID.
 
