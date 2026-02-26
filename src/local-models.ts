@@ -9,6 +9,7 @@ import { execSync, spawn, spawnSync, type ChildProcess } from 'node:child_proces
 const MINARA_DIR = join(homedir(), '.minara');
 const MODELS_FILE = join(MINARA_DIR, 'models.json');
 const SERVER_FILE = join(MINARA_DIR, 'vllm-server.json');
+const MODEL_UPDATE_CACHE_FILE = join(MINARA_DIR, 'model-update-check.json');
 export const VLLM_LOG = join(MINARA_DIR, 'vllm.log');
 
 export const VLLM_PORT = 8321;
@@ -48,6 +49,28 @@ export const AVAILABLE_MODELS: ModelDef[] = [
     params: '21B',
   },
 ];
+
+export interface ModelUpdateInfo {
+  modelId: string;
+  modelName: string;
+  hfRepo: string;
+  localRevision?: string;
+  remoteRevision?: string;
+  hasUpdate: boolean;
+  error?: string;
+}
+
+interface ModelUpdateCacheEntry {
+  checkedAt: number;
+  localRevision?: string;
+  remoteRevision?: string;
+  hasUpdate: boolean;
+  error?: string;
+}
+
+interface ModelUpdateCache {
+  byModelId: Record<string, ModelUpdateCacheEntry>;
+}
 
 // ─── State persistence ──────────────────────────────────────────────────────
 
@@ -281,6 +304,169 @@ c.delete_revisions(*h).execute() if h else None\
   } catch {
     return false;
   }
+}
+
+function loadModelUpdateCache(): ModelUpdateCache {
+  if (!existsSync(MODEL_UPDATE_CACHE_FILE)) return { byModelId: {} };
+  try {
+    return JSON.parse(readFileSync(MODEL_UPDATE_CACHE_FILE, 'utf-8')) as ModelUpdateCache;
+  } catch {
+    return { byModelId: {} };
+  }
+}
+
+function saveModelUpdateCache(cache: ModelUpdateCache): void {
+  ensureDir();
+  writeFileSync(MODEL_UPDATE_CACHE_FILE, JSON.stringify(cache, null, 2), { mode: 0o600 });
+}
+
+function getLocalCachedRevision(py: string, hfRepo: string): string | null {
+  const script = `
+import sys
+from huggingface_hub import scan_cache_dir
+
+repo_id = sys.argv[1]
+cache = scan_cache_dir()
+repos = [r for r in cache.repos if r.repo_id == repo_id]
+if not repos:
+    print("")
+    raise SystemExit(0)
+
+revisions = []
+for repo in repos:
+    revisions.extend(repo.revisions)
+
+if not revisions:
+    print("")
+    raise SystemExit(0)
+
+revisions.sort(key=lambda r: r.last_modified or 0, reverse=True)
+print(revisions[0].commit_hash or "")
+`.trim();
+
+  const r = spawnSync(py, ['-c', script, hfRepo], {
+    encoding: 'utf-8',
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
+
+  if (r.status !== 0) return null;
+  const out = (r.stdout ?? '').trim();
+  return out || null;
+}
+
+async function getRemoteLatestRevision(hfRepo: string): Promise<string | null> {
+  const safeRepo = hfRepo.split('/').map((s) => encodeURIComponent(s)).join('/');
+  try {
+    const res = await fetch(`https://huggingface.co/api/models/${safeRepo}`, {
+      headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { sha?: unknown };
+    return typeof data.sha === 'string' && data.sha ? data.sha : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Check one installed model for updates.
+ * Uses a local cache to avoid frequent Hugging Face API calls.
+ */
+export async function checkModelUpdate(
+  py: string,
+  modelId: string,
+  maxAgeMs = 4 * 60 * 60 * 1000,
+): Promise<ModelUpdateInfo | null> {
+  const model = getModelDef(modelId);
+  if (!model) return null;
+
+  const localRevision = getLocalCachedRevision(py, model.hfRepo) ?? undefined;
+  const cache = loadModelUpdateCache();
+  const cached = cache.byModelId[model.id];
+
+  if (
+    cached &&
+    Date.now() - cached.checkedAt < maxAgeMs &&
+    cached.localRevision === localRevision
+  ) {
+    return {
+      modelId: model.id,
+      modelName: model.name,
+      hfRepo: model.hfRepo,
+      localRevision,
+      remoteRevision: cached.remoteRevision,
+      hasUpdate: cached.hasUpdate,
+      error: cached.error,
+    };
+  }
+
+  const remoteRevision = await getRemoteLatestRevision(model.hfRepo) ?? undefined;
+
+  let result: ModelUpdateInfo;
+  if (!remoteRevision) {
+    result = {
+      modelId: model.id,
+      modelName: model.name,
+      hfRepo: model.hfRepo,
+      localRevision,
+      hasUpdate: false,
+      error: 'Could not fetch latest remote revision',
+    };
+  } else if (!localRevision) {
+    result = {
+      modelId: model.id,
+      modelName: model.name,
+      hfRepo: model.hfRepo,
+      remoteRevision,
+      hasUpdate: false,
+      error: 'No local cached revision found',
+    };
+  } else {
+    result = {
+      modelId: model.id,
+      modelName: model.name,
+      hfRepo: model.hfRepo,
+      localRevision,
+      remoteRevision,
+      hasUpdate: localRevision !== remoteRevision,
+    };
+  }
+
+  cache.byModelId[model.id] = {
+    checkedAt: Date.now(),
+    localRevision: result.localRevision,
+    remoteRevision: result.remoteRevision,
+    hasUpdate: result.hasUpdate,
+    error: result.error,
+  };
+  saveModelUpdateCache(cache);
+
+  return result;
+}
+
+/**
+ * Compare locally cached Hugging Face model revisions with remote latest sha.
+ * Returns one entry per installed model.
+ */
+export async function checkInstalledModelUpdates(py: string): Promise<ModelUpdateInfo[]> {
+  const installedIds = getInstalledIds();
+  const models = installedIds
+    .map((id) => getModelDef(id))
+    .filter((m): m is ModelDef => Boolean(m));
+
+  const checks = models.map(async (model): Promise<ModelUpdateInfo> => {
+    const info = await checkModelUpdate(py, model.id, 0);
+    return info ?? {
+      modelId: model.id,
+      modelName: model.name,
+      hfRepo: model.hfRepo,
+      hasUpdate: false,
+      error: 'Model not found',
+    };
+  });
+
+  return Promise.all(checks);
 }
 
 // ─── Server info ────────────────────────────────────────────────────────────

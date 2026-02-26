@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { select } from '@inquirer/prompts';
+import { select, confirm } from '@inquirer/prompts';
 import chalk from 'chalk';
 import { createInterface } from 'node:readline';
 import type { ChildProcess } from 'node:child_process';
@@ -8,6 +8,8 @@ import {
   getInstalledIds, getActiveId, getModelDef, setActiveModel,
   findPython, isServerRunning, startServerAttached, startServerDetached,
   stopServer, waitForServer, getServerInfo, resolveModelPath,
+  checkInstalledModelUpdates, checkModelUpdate,
+  hasHfHub, pipInstall, clearModelCache, downloadModel,
 } from '../local-models.js';
 import { installFlow, uninstallFlow, listModels } from './install.js';
 import { error, info, success, warn, spinner, wrapAction } from '../utils.js';
@@ -36,6 +38,8 @@ export const privateCommand = new Command('private')
         { name: 'Install model', value: 'install' },
         { name: 'Remove model', value: 'remove' },
         { name: 'List models', value: 'models' },
+        { name: 'Check model updates', value: 'check' },
+        { name: 'Update model', value: 'update' },
       ],
     });
 
@@ -47,6 +51,8 @@ export const privateCommand = new Command('private')
       case 'install': await installFlow(); break;
       case 'remove': await uninstallFlow(); break;
       case 'models': listModels(); break;
+      case 'check': await updatesFlow(); break;
+      case 'update': await updateFlow(); break;
     }
   }));
 
@@ -88,6 +94,17 @@ privateCommand
   .description('Show current server and model status')
   .action(wrapAction(async () => { await statusFlow(); }));
 
+privateCommand
+  .command('check')
+  .alias('updates')
+  .description('Check installed local models for Hugging Face updates')
+  .action(wrapAction(async () => { await updatesFlow(); }));
+
+privateCommand
+  .command('update')
+  .description('Update an installed local model from Hugging Face')
+  .action(wrapAction(async () => { await updateFlow(); }));
+
 // ─── Load / Unload / Status flows ──────────────────────────────────────────
 
 async function loadFlow(): Promise<void> {
@@ -124,6 +141,7 @@ async function loadFlow(): Promise<void> {
   const model = getModelDef(modelId);
   if (!model) { error('Model not found.'); return; }
   setActiveModel(modelId);
+  await maybeWarnModelUpdate(model.id);
 
   const modelPath = resolveModelPath(py, model);
   if (!modelPath) { error('Could not resolve model path from HuggingFace cache.'); return; }
@@ -183,6 +201,146 @@ async function statusFlow(): Promise<void> {
   console.log('');
 }
 
+function shortSha(v?: string): string {
+  return v ? v.slice(0, 12) : '—';
+}
+
+async function updatesFlow(): Promise<void> {
+  const installed = getInstalledIds();
+  if (installed.length === 0) {
+    info('No local models installed.');
+    info(`Run ${chalk.cyan('minara private install')} first.`);
+    return;
+  }
+
+  const py = findPython();
+  if (!py) {
+    error('Python 3 is required to check local model revisions.');
+    return;
+  }
+
+  const spin = spinner('Checking Hugging Face for model updates…');
+  const results = await checkInstalledModelUpdates(py);
+  spin.stop();
+
+  if (results.length === 0) {
+    info('No installed models found in state.');
+    return;
+  }
+
+  const updatable = results.filter((r) => r.hasUpdate);
+
+  console.log('');
+  console.log(chalk.bold('  Model Update Check'));
+  console.log(chalk.dim('  ─'.repeat(24)));
+  console.log('');
+
+  for (const r of results) {
+    const status = r.hasUpdate
+      ? chalk.yellow.bold('Update available')
+      : r.error
+        ? chalk.red('Check failed')
+        : chalk.green('Up-to-date');
+
+    console.log(`  ${chalk.bold(r.modelName)} ${chalk.dim(`(${r.hfRepo})`)}`);
+    console.log(`    Status : ${status}`);
+    console.log(`    Local  : ${chalk.dim(shortSha(r.localRevision))}`);
+    console.log(`    Remote : ${chalk.dim(shortSha(r.remoteRevision))}`);
+    if (r.error) {
+      console.log(`    Note   : ${chalk.dim(r.error)}`);
+    }
+    console.log('');
+  }
+
+  if (updatable.length > 0) {
+    info(`${updatable.length} model(s) can be refreshed from Hugging Face.`);
+    console.log(chalk.dim(`  Update with: ${chalk.cyan('minara private update')}`));
+  } else {
+    success('All installed local models are up-to-date.');
+  }
+}
+
+async function ensureHfHubReady(py: string): Promise<boolean> {
+  if (hasHfHub(py)) return true;
+  warn('huggingface_hub is not installed.');
+  const ok = await confirm({ message: 'Install huggingface_hub now?', default: true });
+  if (!ok) return false;
+  if (!pipInstall(py, 'huggingface_hub')) {
+    error('Failed to install huggingface_hub.');
+    return false;
+  }
+  success('huggingface_hub installed');
+  return true;
+}
+
+async function updateFlow(): Promise<void> {
+  const installed = getInstalledIds();
+  if (installed.length === 0) {
+    info('No local models installed.');
+    info(`Run ${chalk.cyan('minara private install')} first.`);
+    return;
+  }
+
+  const py = findPython();
+  if (!py) {
+    error('Python 3 is required.');
+    return;
+  }
+  if (!(await ensureHfHubReady(py))) return;
+
+  const checkSpin = spinner('Checking which models have updates…');
+  const results = await checkInstalledModelUpdates(py);
+  checkSpin.stop();
+
+  const candidates = results.filter((r) => r.hasUpdate);
+  if (candidates.length === 0) {
+    success('All installed local models are up-to-date.');
+    return;
+  }
+
+  const selected = await select({
+    message: 'Select model to update:',
+    choices: candidates.map((r) => ({
+      name: `${r.modelName} ${chalk.dim(`(${shortSha(r.localRevision)} -> ${shortSha(r.remoteRevision)})`)}`,
+      value: r.modelId,
+    })),
+  });
+
+  const model = getModelDef(selected);
+  if (!model) {
+    error('Model not found.');
+    return;
+  }
+
+  const ok = await confirm({
+    message: `Update ${model.name} now? This may take a while and consume bandwidth.`,
+    default: true,
+  });
+  if (!ok) return;
+
+  const spin = spinner(`Updating ${model.name} from Hugging Face…`);
+  clearModelCache(py, model.hfRepo);
+  const downloaded = downloadModel(py, model.hfRepo);
+  spin.stop();
+
+  if (!downloaded) {
+    error(`Failed to update ${model.name}.`);
+    return;
+  }
+
+  success(`${model.name} updated successfully.`);
+}
+
+async function maybeWarnModelUpdate(modelId: string): Promise<void> {
+  const py = findPython();
+  if (!py) return;
+  const infoRes = await checkModelUpdate(py, modelId);
+  if (infoRes?.hasUpdate) {
+    warn(`A newer Hugging Face revision is available for ${chalk.bold(infoRes.modelName)}.`);
+    info(`Run ${chalk.cyan('minara private update')} to update explicitly.`);
+  }
+}
+
 // ─── Chat flow ──────────────────────────────────────────────────────────────
 
 async function chatFlow(messageArg?: string): Promise<void> {
@@ -200,6 +358,7 @@ async function chatFlow(messageArg?: string): Promise<void> {
   let model = srv ? getModelDef(srv.modelId) : undefined;
   if (!model) model = getModelDef(getActiveId() ?? installed[0]);
   if (!model) { error('Model not found.'); return; }
+  await maybeWarnModelUpdate(model.id);
 
   // vLLM API requires the model name that was used to start the server
   // (which is the resolved local path when subdir is used)

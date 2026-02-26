@@ -214,6 +214,32 @@ Minara: Bitcoin is currently trading at $95,432...
   exit        Quit the chat
 ```
 
+### Local Models (DMind / Hugging Face)
+
+| Command                  | Description                                                |
+| ------------------------ | ---------------------------------------------------------- |
+| `minara private`         | Open interactive local-model menu                          |
+| `minara private install` | Download a DMind model from Hugging Face                   |
+| `minara private models`  | List available/installed local models                      |
+| `minara private load`    | Load selected model into vLLM server                       |
+| `minara private chat`    | Chat with local model                                      |
+| `minara private check`   | Check whether installed local models have newer HF revision |
+| `minara private update`  | Explicitly update an installed local model                 |
+| `minara private unload`  | Stop local vLLM server                                     |
+| `minara private status`  | Show local model server status                             |
+
+```bash
+minara private                   # Interactive menu
+minara private install           # Install local model from Hugging Face
+minara private check             # Check model revisions (local vs remote)
+minara private update            # Explicitly update selected installed model
+minara private load              # Start local model server
+minara private chat              # Chat locally
+minara private unload            # Stop local model server
+```
+
+> **Update behavior:** `load` / `chat` only show an update notice when a newer model revision exists. Models are updated only when you explicitly run `minara private update`.
+
 ### Market Discovery
 
 | Command                            | Description                              |
