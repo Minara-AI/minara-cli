@@ -191,6 +191,13 @@ export const chatCommand = new Command('chat')
     console.log('');
 
     const rl = createInterface({ input: process.stdin, output: process.stdout });
+    let exiting = false;
+
+    const handleSigint = () => {
+      if (exiting) return;
+      exiting = true;
+      rl.close();
+    };
 
     async function sendAndPrintWithPause(msg: string) {
       rl.pause();
@@ -205,7 +212,10 @@ export const chatCommand = new Command('chat')
     const ask = (): Promise<string> =>
       new Promise((resolve) => rl.question(chalk.blue.bold('>>> '), resolve));
 
+    rl.on('SIGINT', handleSigint);
+    process.on('SIGINT', handleSigint);
     rl.on('close', () => {
+      process.off('SIGINT', handleSigint);
       console.log(chalk.dim('\nGoodbye!'));
       process.exit(0);
     });
