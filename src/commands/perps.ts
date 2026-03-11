@@ -327,7 +327,9 @@ const cancelCmd = new Command('cancel')
 const closeCmd = new Command('close')
   .description('Close an open perps position at market price')
   .option('-y, --yes', 'Skip confirmation')
-  .action(wrapAction(async (opts) => {
+  .option('-a, --all', 'Close all open positions (non-interactive)')
+  .option('-s, --symbol <symbol>', 'Close position by symbol (non-interactive, e.g. BTC, ETH)')
+  .action(wrapAction(async (opts: { yes?: boolean; all?: boolean; symbol?: string }) => {
     const creds = requireAuth();
 
     const spin = spinner('Fetching positions…');
@@ -354,22 +356,140 @@ const closeCmd = new Command('close')
       return color(`${n >= 0 ? '+' : ''}${fmt(n)}`);
     };
 
-    const selected = await select({
-      message: 'Select position to close:',
-      choices: positions.map((p) => {
+    // Helper to close specific positions (used by --all and --symbol)
+    const closePositions = async (positionsToClose: Record<string, unknown>[], title: string) => {
+      console.log('');
+      console.log(chalk.bold(title));
+      console.log(`  Positions to close: ${positionsToClose.length}`);
+      positionsToClose.forEach((p) => {
         const symbol = String(p.symbol ?? '');
         const side = String(p.side ?? '').toLowerCase();
-        const sideLabel = side === 'long' || side === 'buy' ? chalk.green('LONG') : chalk.red('SHORT');
+        const sideLabel = side === 'long' || side === 'buy' ? 'LONG' : 'SHORT';
         const sz = String(p.size ?? '');
-        const entry = fmt(Number(p.entryPrice ?? 0));
-        const pnl = pnlFmt(Number(p.unrealizedPnl ?? 0));
-        return {
-          name: `${chalk.bold(symbol.padEnd(6))} ${sideLabel}  ${sz} @ ${chalk.yellow(entry)}  PnL: ${pnl}`,
-          value: p,
+        console.log(`    - ${symbol} ${sideLabel} ${sz}`);
+      });
+      console.log('');
+
+      if (!opts.yes) {
+        await requireTransactionConfirmation(`Close ${positionsToClose.length} position(s) @ Market`);
+      }
+      await requireTouchId();
+
+      const orderSpin = spinner('Closing positions…');
+      const results: { symbol: string; side: string; success: boolean; error?: string }[] = [];
+
+      for (const pos of positionsToClose) {
+        const symbol = String(pos.symbol ?? '');
+        const side = String(pos.side ?? '').toLowerCase();
+        const sz = String(pos.size ?? '');
+        const isLong = side === 'long' || side === 'buy';
+        const isBuy = !isLong;
+
+        const assetMeta = assets.find((a) => a.name.toUpperCase() === symbol.toUpperCase());
+        const marketPx = assetMeta?.markPx;
+
+        if (!marketPx || marketPx <= 0) {
+          results.push({ symbol, side, success: false, error: 'Could not fetch price' });
+          continue;
+        }
+
+        const slippagePx = isBuy ? marketPx * 1.01 : marketPx * 0.99;
+        const limitPx = slippagePx.toPrecision(5);
+
+        const order: PerpsOrder = {
+          a: symbol,
+          b: isBuy,
+          p: limitPx,
+          s: sz,
+          r: true,
+          t: { trigger: { triggerPx: String(marketPx), tpsl: 'tp', isMarket: true } },
         };
-      }),
+
+        try {
+          const orderRes = await perpsApi.placeOrders(creds.accessToken, { orders: [order], grouping: 'na' });
+          if (orderRes.success) {
+            results.push({ symbol, side, success: true });
+          } else {
+            const errMsg = orderRes.error ? `${orderRes.error.code}: ${orderRes.error.message}` : 'Unknown error';
+            results.push({ symbol, side, success: false, error: errMsg });
+          }
+        } catch (e) {
+          results.push({ symbol, side, success: false, error: String(e) });
+        }
+      }
+
+      orderSpin.stop();
+
+      // Report results
+      const succeeded = results.filter((r) => r.success);
+      const failed = results.filter((r) => !r.success);
+
+      if (succeeded.length > 0) {
+        success(`Closed ${succeeded.length} position(s):`);
+        succeeded.forEach((r) => {
+          console.log(`  ✓ ${r.symbol} ${r.side.toUpperCase()}`);
+        });
+      }
+
+      if (failed.length > 0) {
+        warn(`Failed to close ${failed.length} position(s):`);
+        failed.forEach((r) => {
+          console.log(`  ✗ ${r.symbol} ${r.side.toUpperCase()}: ${r.error}`);
+        });
+      }
+    };
+
+    // If --all flag is set, close all positions directly (non-interactive)
+    if (opts.all) {
+      await closePositions(positions, 'Close ALL Positions:');
+      return;
+    }
+
+    // If --symbol flag is set, close positions matching the symbol (non-interactive)
+    if (opts.symbol) {
+      const symbolUpper = opts.symbol.toUpperCase();
+      const matchingPositions = positions.filter(
+        (p) => String(p.symbol ?? '').toUpperCase() === symbolUpper
+      );
+      if (matchingPositions.length === 0) {
+        warn(`No open positions found for symbol: ${opts.symbol}`);
+        return;
+      }
+      await closePositions(matchingPositions, `Close ${opts.symbol.toUpperCase()} Positions:`);
+      return;
+    }
+
+    // Build position choices with ALL option at the top
+    type PositionOrAll = Record<string, unknown> | '__ALL__';
+    const positionChoices: { name: string; value: PositionOrAll }[] = positions.map((p) => {
+      const symbol = String(p.symbol ?? '');
+      const side = String(p.side ?? '').toLowerCase();
+      const sideLabel = side === 'long' || side === 'buy' ? chalk.green('LONG') : chalk.red('SHORT');
+      const sz = String(p.size ?? '');
+      const entry = fmt(Number(p.entryPrice ?? 0));
+      const pnl = pnlFmt(Number(p.unrealizedPnl ?? 0));
+      return {
+        name: `${chalk.bold(symbol.padEnd(6))} ${sideLabel}  ${sz} @ ${chalk.yellow(entry)}  PnL: ${pnl}`,
+        value: p,
+      };
     });
 
+    // Add "ALL POSITIONS" option at the beginning
+    const allOption: { name: string; value: PositionOrAll } = { name: chalk.bold.cyan('[ CLOSE ALL POSITIONS ]'), value: '__ALL__' };
+    const choices = [allOption, ...positionChoices];
+
+    const selected = await select<PositionOrAll>({
+      message: 'Select position to close:',
+      choices,
+    });
+
+    // Handle "ALL POSITIONS" selection
+    if (selected === '__ALL__') {
+      await closePositions(positions, 'Close ALL Positions:');
+      return;
+    }
+
+    // Single position close (existing logic)
     const symbol = String(selected.symbol ?? '');
     const side = String(selected.side ?? '').toLowerCase();
     const sz = String(selected.size ?? '');
