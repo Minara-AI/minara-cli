@@ -29,6 +29,9 @@ import { discoverCommand } from './commands/discover.js';
 import { premiumCommand } from './commands/premium.js';
 import { configCommand } from './commands/config.js';
 
+// Local Models
+import { privateCommand } from './commands/private.js';
+
 const require = createRequire(import.meta.url);
 const { version } = require('../package.json') as { version: string };
 
@@ -83,6 +86,9 @@ program.addCommand(premiumCommand);
 
 // ── Config ───────────────────────────────────────────────────────────────
 program.addCommand(configCommand);
+
+// ── Local Models ─────────────────────────────────────────────────────────
+program.addCommand(privateCommand);
 
 // Default: show help
 program.action(() => {
