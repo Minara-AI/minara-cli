@@ -197,11 +197,13 @@ export interface CrossChainActivitiesDto {
 
 export interface PerpsDepositDto {
   usdcAmount: number; // min 5 USDC
+  subAccountId?: string;
 }
 
 export interface PerpsWithdrawDto {
   usdcAmount: number;
   toAddress: string;
+  subAccountId?: string;
 }
 
 export interface PerpsOrder {
@@ -223,6 +225,7 @@ export interface PerpsPlaceOrdersDto {
   orders: PerpsOrder[];
   grouping: 'na' | 'normalTpsl' | 'positionTpsl';
   expiresAfter?: number;
+  subAccountId?: string;
 }
 
 export interface PerpsCancelEntry {
@@ -234,6 +237,7 @@ export interface PerpsCancelEntry {
 
 export interface PerpsCancelOrdersDto {
   cancels: PerpsCancelEntry[];
+  subAccountId?: string;
 }
 
 export interface PerpsPosition {
@@ -257,6 +261,50 @@ export interface UpdateLeverageDto {
   symbol: string;
   isCross: boolean;
   leverage: number;
+  subAccountId?: string;
+}
+
+// ─── Perp Wallets (multi sub-account) ────────────────────────────────────
+
+export interface PerpSubAccount {
+  _id?: string;
+  id?: string;
+  subAccountId?: string;
+  name?: string;
+  address?: string;
+  isDefault?: boolean;
+  equityValue?: number;
+  dispatchableValue?: number;
+  totalUnrealizedPnl?: number;
+  totalMarginUsed?: number;
+  withdrawableValue?: number;
+  positions?: PerpsPosition[];
+  strategy?: {
+    strategyId?: string;
+    status?: string;
+    symbols?: string[];
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
+export interface CreatePerpSubAccountDto {
+  name: string;
+}
+
+export interface RenamePerpSubAccountDto {
+  subAccountId: string;
+  name: string;
+}
+
+export interface TransferFundsDto {
+  fromSubAccountId?: string;
+  toSubAccountId?: string;
+  amount: number;
+}
+
+export interface SweepFundsDto {
+  subAccountId: string;
 }
 
 // ─── Limit Orders ────────────────────────────────────────────────────────

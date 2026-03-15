@@ -92,9 +92,68 @@ const perpsCmd = new Command('perps')
   }));
 
 async function showPerpsAssets(token: string): Promise<void> {
-  const spin = spinner('Fetching perps account…');
-  const res = await perpsApi.getAccountSummary(token);
+  const spin = spinner('Fetching perps wallets…');
+  const walletsRes = await perpsApi.listSubAccounts(token);
   spin.stop();
+
+  let wallets: Record<string, unknown>[] = [];
+  if (walletsRes.success && walletsRes.data) {
+    const raw = walletsRes.data;
+    if (Array.isArray(raw)) wallets = raw;
+    else if (raw && typeof raw === 'object') {
+      const inner = (raw as Record<string, unknown>).data
+        ?? (raw as Record<string, unknown>).subAccounts
+        ?? (raw as Record<string, unknown>).wallets;
+      if (Array.isArray(inner)) wallets = inner;
+    }
+  }
+
+  const fmt = (n: number) => `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const pnlFmt = (n: number) => {
+    const color = n >= 0 ? chalk.green : chalk.red;
+    return color(`${n >= 0 ? '+' : ''}${fmt(n)}`);
+  };
+
+  if (wallets.length > 0) {
+    console.log('');
+    console.log(chalk.bold(`Perps Wallets (${wallets.length}):`));
+
+    for (const w of wallets) {
+      const name = String(w.name ?? 'Unnamed');
+      const def = w.isDefault ? chalk.cyan(' (default)') : '';
+
+      console.log('');
+      console.log(chalk.bold(`  ${name}${def}:`));
+      console.log(`    Equity        : ${fmt(Number(w.equityValue ?? 0))}`);
+      console.log(`    Available     : ${fmt(Number(w.dispatchableValue ?? 0))}`);
+      console.log(`    Margin Used   : ${fmt(Number(w.totalMarginUsed ?? 0))}`);
+      console.log(`    Unrealized PnL: ${pnlFmt(Number(w.totalUnrealizedPnl ?? 0))}`);
+
+      const positions = Array.isArray(w.positions) ? w.positions as Record<string, unknown>[] : [];
+      if (positions.length > 0) {
+        printTable(positions as object[], POSITION_COLUMNS);
+      } else {
+        console.log(chalk.dim('    No open positions.'));
+      }
+    }
+
+    // Aggregated summary
+    const aggRes = await perpsApi.getAggregatedSummary(token);
+    if (aggRes.success && aggRes.data) {
+      const d = aggRes.data as Record<string, unknown>;
+      console.log('');
+      console.log(chalk.bold('  Aggregated:'));
+      console.log(`    Total Equity     : ${fmt(Number(d.totalEquity ?? d.equityValue ?? 0))}`);
+      console.log(`    Total Unrl. PnL  : ${pnlFmt(Number(d.totalUnrealizedPnl ?? 0))}`);
+    }
+    console.log('');
+    return;
+  }
+
+  // Fallback to legacy single-account API
+  const legacySpin = spinner('Fetching perps account…');
+  const res = await perpsApi.getAccountSummary(token);
+  legacySpin.stop();
 
   if (!res.success || !res.data) {
     console.log(chalk.dim('  Could not fetch perps account.'));
@@ -103,13 +162,7 @@ async function showPerpsAssets(token: string): Promise<void> {
   }
 
   const d = res.data as Record<string, unknown>;
-  const fmt = (n: number) => `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  const pnlFmt = (n: number) => {
-    const color = n >= 0 ? chalk.green : chalk.red;
-    return color(`${n >= 0 ? '+' : ''}${fmt(n)}`);
-  };
 
-  // ── Account overview ───────────────────────────────────────────────
   console.log('');
   console.log(chalk.bold('Perps Account:'));
   console.log(`  Equity        : ${fmt(Number(d.equityValue ?? 0))}`);
@@ -118,7 +171,6 @@ async function showPerpsAssets(token: string): Promise<void> {
   console.log(`  Unrealized PnL: ${pnlFmt(Number(d.totalUnrealizedPnl ?? 0))}`);
   console.log(`  Withdrawable  : ${fmt(Number(d.withdrawableValue ?? 0))}`);
 
-  // ── Positions ───────────────────────────────────────────────────────
   const positions = Array.isArray(d.positions) ? d.positions as Record<string, unknown>[] : [];
   console.log('');
   console.log(chalk.bold(`Open Positions (${positions.length}):`));
