@@ -8,6 +8,11 @@ import type {
   PerpsPosition,
   TokenPrice,
   TransactionResult,
+  PerpSubAccount,
+  CreatePerpSubAccountDto,
+  RenamePerpSubAccountDto,
+  TransferFundsDto,
+  SweepFundsDto,
 } from '../types.js';
 
 /** Deposit USDC to perps (min 5 USDC) */
@@ -90,7 +95,7 @@ export function getSupportedSymbols(token: string) {
   return get<string[]>('/v1/fully-managed/supported-symbols', { token });
 }
 
-export function createStrategy(token: string, dto: { symbols: string[]; strategyConfig?: Record<string, unknown>; language?: string }) {
+export function createStrategy(token: string, dto: { symbols: string[]; strategyConfig?: Record<string, unknown>; language?: string; subAccountId?: string }) {
   return post<Record<string, unknown>>('/v1/fully-managed/create-strategy', { token, body: dto });
 }
 
@@ -108,6 +113,70 @@ export function updateStrategy(token: string, dto: { strategyId: string; symbols
 
 export function getPerformanceMetrics(token: string) {
   return get<Record<string, unknown>>('/v1/fully-managed/performance/metrics/v2', { token });
+}
+
+export function getMinEquityValue(token: string) {
+  return get<Record<string, unknown>>('/v1/fully-managed/get-min-equity-value', { token });
+}
+
+export function setMinEquityValue(token: string, dto: Record<string, unknown>) {
+  return post<Record<string, unknown>>('/v1/fully-managed/set-min-equity-value', { token, body: dto });
+}
+
+export function getRecords(token: string, page: number, limit: number) {
+  return get<Record<string, unknown>[]>('/v1/fully-managed/records', { token, query: { page, limit } });
+}
+
+// ── Perp Wallets (multi sub-account) ──────────────────────────────────────
+
+/** List all perp sub-accounts */
+export function listSubAccounts(token: string) {
+  return get<PerpSubAccount[]>('/v1/perp-wallets', { token });
+}
+
+/** Create a new perp sub-account */
+export function createSubAccount(token: string, dto: CreatePerpSubAccountDto) {
+  return post<PerpSubAccount>('/v1/perp-wallets', { token, body: dto });
+}
+
+/** Rename a perp sub-account */
+export function renameSubAccount(token: string, dto: RenamePerpSubAccountDto) {
+  return post<void>('/v1/perp-wallets/rename', { token, body: dto });
+}
+
+/** Get summary for a specific sub-account */
+export function getSubAccountSummary(token: string, subAccountId: string) {
+  return get<Record<string, unknown>>('/v1/perp-wallets/summary', { token, query: { subAccountId } });
+}
+
+/** Get aggregated PnL across all sub-accounts */
+export function getAggregatedSummary(token: string) {
+  return get<Record<string, unknown>>('/v1/perp-wallets/aggregated-summary', { token });
+}
+
+/** Get autopilot records for a specific sub-account */
+export function getSubAccountRecords(token: string, subAccountId: string, page: number, limit: number) {
+  return get<Record<string, unknown>[]>('/v1/perp-wallets/records', { token, query: { subAccountId, page, limit } });
+}
+
+/** Get fills for a specific sub-account */
+export function getSubAccountFills(token: string, subAccountId: string, startTime: number) {
+  return get<Record<string, unknown>[]>('/v1/perp-wallets/fills', { token, query: { subAccountId, startTime } });
+}
+
+/** Get open orders for a specific sub-account */
+export function getSubAccountOpenOrders(token: string, subAccountId: string) {
+  return get<Record<string, unknown>[]>('/v1/perp-wallets/open-orders', { token, query: { subAccountId } });
+}
+
+/** Transfer USDC between sub-accounts (internal, no gas) */
+export function transferFunds(token: string, dto: TransferFundsDto) {
+  return post<TransactionResult>('/v1/perp-wallets/transfer', { token, body: dto });
+}
+
+/** Sweep all funds from a sub-account back to the default account */
+export function sweepFunds(token: string, dto: SweepFundsDto) {
+  return post<TransactionResult>('/v1/perp-wallets/sweep', { token, body: dto });
 }
 
 // ── Price Analysis (Ask Long/Short) ──────────────────────────────────────

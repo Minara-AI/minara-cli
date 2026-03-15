@@ -13,8 +13,9 @@ export const balanceCommand = new Command('balance')
     const creds = requireAuth();
 
     const spin = spinner('Fetching balances…');
-    const [spotRes, perpsRes] = await Promise.all([
+    const [spotRes, perpsAggRes, perpsLegacyRes] = await Promise.all([
       get<Record<string, unknown>[]>('/users/pnls/all', { token: creds.accessToken }),
+      perpsApi.getAggregatedSummary(creds.accessToken),
       perpsApi.getAccountSummary(creds.accessToken),
     ]);
     spin.stop();
@@ -35,8 +36,11 @@ export const balanceCommand = new Command('balance')
     }
 
     let perpsAvailable = 0;
-    if (perpsRes.success && perpsRes.data) {
-      const d = perpsRes.data as Record<string, unknown>;
+    if (perpsAggRes.success && perpsAggRes.data) {
+      const d = perpsAggRes.data as Record<string, unknown>;
+      perpsAvailable = Number(d.totalDispatchable ?? d.dispatchableValue ?? d.totalEquity ?? 0);
+    } else if (perpsLegacyRes.success && perpsLegacyRes.data) {
+      const d = perpsLegacyRes.data as Record<string, unknown>;
       perpsAvailable = Number(d.dispatchableValue ?? 0);
     }
 
