@@ -50,6 +50,13 @@ describe('perps API', () => {
     });
   });
 
+  it('modifyOrders should POST /v1/tx/perps/modify-orders', async () => {
+    await perps.modifyOrders('tk', { cancels: [{ oid: 1 }] });
+    expect(mockPost).toHaveBeenCalledWith('/v1/tx/perps/modify-orders', {
+      token: 'tk', body: { cancels: [{ oid: 1 }] },
+    });
+  });
+
   it('updateLeverage should POST /v1/tx/perps/update-leverage', async () => {
     const dto = { symbol: 'ETH', isCross: true, leverage: 10 };
     await perps.updateLeverage('tk', dto);
@@ -88,6 +95,32 @@ describe('perps API', () => {
   it('getEquityHistory should GET /v1/tx/perps/equity-history-chart/all', async () => {
     await perps.getEquityHistory('tk');
     expect(mockGet).toHaveBeenCalledWith('/v1/tx/perps/equity-history-chart/all', { token: 'tk' });
+  });
+
+  it('getDecisions should GET /v1/tx/perps/decisions/all', async () => {
+    await perps.getDecisions('tk');
+    expect(mockGet).toHaveBeenCalledWith('/v1/tx/perps/decisions/all', { token: 'tk' });
+  });
+
+  it('claimRewards should POST /v1/tx/perps/claim-rewards', async () => {
+    await perps.claimRewards('tk');
+    expect(mockPost).toHaveBeenCalledWith('/v1/tx/perps/claim-rewards', { token: 'tk' });
+  });
+
+  it('getPerpsAddress should GET /auth/me and return perpetual-evm wallet', async () => {
+    mockGet.mockResolvedValueOnce({
+      success: true,
+      data: { wallets: { 'perpetual-evm': '0xPerpAddr123' } },
+    } as Awaited<ReturnType<typeof get>>);
+    const addr = await perps.getPerpsAddress('tk');
+    expect(mockGet).toHaveBeenCalledWith('/auth/me', { token: 'tk' });
+    expect(addr).toBe('0xPerpAddr123');
+  });
+
+  it('getPerpsAddress should return null when no perp wallet', async () => {
+    mockGet.mockResolvedValueOnce({ success: true, data: {} } as Awaited<ReturnType<typeof get>>);
+    const addr = await perps.getPerpsAddress('tk');
+    expect(addr).toBeNull();
   });
 });
 
@@ -221,5 +254,118 @@ describe('autopilot API', () => {
   it('getPerformanceMetrics should GET /v1/fully-managed/performance/metrics/v2', async () => {
     await perps.getPerformanceMetrics('tk');
     expect(mockGet).toHaveBeenCalledWith('/v1/fully-managed/performance/metrics/v2', { token: 'tk' });
+  });
+
+  it('getMinEquityValue should GET /v1/fully-managed/get-min-equity-value', async () => {
+    await perps.getMinEquityValue('tk');
+    expect(mockGet).toHaveBeenCalledWith('/v1/fully-managed/get-min-equity-value', { token: 'tk' });
+  });
+
+  it('setMinEquityValue should POST /v1/fully-managed/set-min-equity-value', async () => {
+    const dto = { minEquityValue: 100 };
+    await perps.setMinEquityValue('tk', dto);
+    expect(mockPost).toHaveBeenCalledWith('/v1/fully-managed/set-min-equity-value', {
+      token: 'tk', body: dto,
+    });
+  });
+
+  it('getRecords should GET /v1/fully-managed/records with page and limit', async () => {
+    await perps.getRecords('tk', 1, 20);
+    expect(mockGet).toHaveBeenCalledWith('/v1/fully-managed/records', {
+      token: 'tk', query: { page: 1, limit: 20 },
+    });
+  });
+
+  it('priceAnalysis should POST /tokens/price-analysis', async () => {
+    const dto = { symbol: 'ETH', startTime: 1700000000000 };
+    await perps.priceAnalysis('tk', dto);
+    expect(mockPost).toHaveBeenCalledWith('/tokens/price-analysis', {
+      token: 'tk', body: dto,
+    });
+  });
+});
+
+// ── Hyperliquid direct API (fetch) ───────────────────────────────────────
+
+describe('Hyperliquid API', () => {
+  const mockFetch = vi.fn();
+
+  beforeEach(() => {
+    vi.stubGlobal('fetch', mockFetch);
+  });
+
+  it('getAssetMeta should POST to Hyperliquid info with metaAndAssetCtxs', async () => {
+    mockFetch.mockResolvedValueOnce({
+      json: vi.fn().mockResolvedValue([
+        { universe: [{ name: 'ETH', maxLeverage: 50, szDecimals: 4 }] },
+        [{ markPx: '2500' }],
+      ]),
+    });
+    const result = await perps.getAssetMeta();
+    expect(mockFetch).toHaveBeenCalledWith('https://api.hyperliquid.xyz/info', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'metaAndAssetCtxs' }),
+    });
+    expect(result).toEqual([{ name: 'ETH', maxLeverage: 50, szDecimals: 4, markPx: 2500 }]);
+  });
+
+  it('getOpenOrders should POST to Hyperliquid info with openOrders and user', async () => {
+    mockFetch.mockResolvedValueOnce({
+      json: vi.fn().mockResolvedValue([
+        { coin: 'ETH', limitPx: '2500', oid: 1, side: 'B', sz: '0.1', timestamp: 1700000000 },
+      ]),
+    });
+    const result = await perps.getOpenOrders('0xUserAddr');
+    expect(mockFetch).toHaveBeenCalledWith('https://api.hyperliquid.xyz/info', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'openOrders', user: '0xUserAddr' }),
+    });
+    expect(result).toHaveLength(1);
+    expect(result[0].coin).toBe('ETH');
+    expect(result[0].oid).toBe(1);
+  });
+
+  it('getUserFills should POST to Hyperliquid info with userFillsByTime', async () => {
+    mockFetch.mockResolvedValueOnce({
+      json: vi.fn().mockResolvedValue([
+        { coin: 'ETH', px: '2500', sz: '0.1', side: 'B', time: 1700000000, dir: 'Open Long', closedPnl: '0', fee: '0.1', oid: 1, tid: 1 },
+      ]),
+    });
+    const result = await perps.getUserFills('0xUserAddr', 7);
+    expect(mockFetch).toHaveBeenCalledWith('https://api.hyperliquid.xyz/info', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: expect.any(String),
+    });
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+    expect(body).toMatchObject({ type: 'userFillsByTime', user: '0xUserAddr', aggregateByTime: true });
+    expect(typeof body.startTime).toBe('number');
+    expect(result).toHaveLength(1);
+    expect(result[0].coin).toBe('ETH');
+  });
+
+  it('getUserLeverage should POST to Hyperliquid info with clearinghouseState', async () => {
+    mockFetch.mockResolvedValueOnce({
+      json: vi.fn().mockResolvedValue({
+        assetPositions: [
+          {
+            position: {
+              coin: 'ETH',
+              leverage: { type: 'cross', value: 10 },
+              maxLeverage: 50,
+            },
+          },
+        ],
+      }),
+    });
+    const result = await perps.getUserLeverage('0xUserAddr');
+    expect(mockFetch).toHaveBeenCalledWith('https://api.hyperliquid.xyz/info', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'clearinghouseState', user: '0xUserAddr' }),
+    });
+    expect(result).toEqual([{ coin: 'ETH', leverageType: 'cross', leverageValue: 10, maxLeverage: 50 }]);
   });
 });
