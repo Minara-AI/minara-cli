@@ -44,6 +44,7 @@ export const fooCommand = new Command("foo").action(
 
 - Mock `@inquirer/prompts`, `ora`, API modules, `requireTransactionConfirmation`, `requireTouchId`
 - Commander commands are singletons — call `vi.resetModules()` + dynamic `import()` between tests
+- **Before every `git commit`** — run `npx vitest run` and confirm all tests pass; do not commit if any test fails
 
 ## Git
 
