@@ -21,7 +21,8 @@
 - **AI Chat** — Crypto-native AI for on-chain analysis, market research, and DeFi due diligence. Interactive REPL & single-shot queries with `fast` / `quality` / `thinking` modes
 - **Wallet & Balance** — Unified balance view, spot holdings with PnL, perps account overview, deposits, withdrawals, and credit card on-ramp via MoonPay
 - **Chain-Abstracted Trading** — Cross-chain swaps with automatic chain detection, perpetual futures, and limit orders. Accepts `$TICKER`, token name, or contract address
-- **AI Autopilot & Analysis** — Fully managed AI trading strategies for perps, plus on-demand long/short analysis with one-click quick order
+- **Multi-Wallet Perps** — Manage multiple sub-wallets per account: create, rename, sweep, transfer USDC between wallets. All trading commands support `--wallet` targeting
+- **AI Autopilot & Analysis** — Multi-strategy AI trading per wallet with performance dashboard, strategy comparison table, and one-click config management. Plus on-demand long/short analysis with quick order
 - **Market Discovery** — Trending tokens & stocks, Fear & Greed Index, on-chain metrics, and search
 
 ## Installation
@@ -135,28 +136,44 @@ minara swap --dry-run              # Simulate without executing
 | `minara perps deposit`      | Deposit USDC to perps (or use `minara deposit perps`) |
 | `minara perps withdraw`     | Withdraw USDC from perps account                      |
 | `minara perps fund-records` | View fund deposit/withdrawal records                  |
-| `minara perps autopilot`    | Manage AI autopilot trading strategy (on/off/config)  |
+| `minara perps wallets`      | List all sub-wallets with balances and autopilot info |
+| `minara perps create-wallet`| Create a new perps sub-wallet                         |
+| `minara perps rename-wallet`| Rename a sub-wallet                                   |
+| `minara perps sweep`        | Consolidate funds from sub-wallet to default          |
+| `minara perps transfer`     | Transfer USDC between sub-wallets                     |
+| `minara perps autopilot`    | Manage AI autopilot strategies per wallet             |
 | `minara perps ask`          | AI long/short analysis with quick order               |
 
 ```bash
-minara perps positions             # List positions with equity, margin, PnL
-minara perps order                 # Interactive: symbol selector → side → size → confirm
+minara perps positions             # Positions per wallet with equity, margin, PnL
+minara perps positions --wallet Bot-1  # Positions for a specific wallet only
+minara perps order                 # Interactive: symbol → side → size → confirm
+minara perps order --wallet Bot-1  # Place order on a specific wallet
 minara perps close                 # Close a position: pick from list → market close
+minara perps close --all           # Close all positions at once
 minara perps cancel                # Cancel an order: pick from open orders list
 minara perps leverage              # Interactive: shows max leverage per asset
 minara perps trades                # Recent fills from Hyperliquid (default 7 days)
 minara perps trades -d 30          # Last 30 days of trade history
 minara perps deposit -a 100        # Deposit 100 USDC to perps
 minara perps withdraw -a 50        # Withdraw 50 USDC from perps
-minara perps autopilot             # Toggle AI autopilot, create/update strategy
+minara perps wallets               # All wallets: equity, margin, PnL, strategies
+minara perps create-wallet -n Bot-2  # Create a new sub-wallet
+minara perps sweep                 # Move funds from a sub-wallet to default
+minara perps transfer              # Transfer USDC between any two wallets
+minara perps autopilot             # Strategy dashboard: enable/disable, config, perf
 minara perps ask                   # AI analysis → optional quick order
 ```
 
+> **Multi-wallet support:** All trading commands (`order`, `deposit`, `withdraw`, `close`, `cancel`, `leverage`, `trades`, `fund-records`, `ask`) accept `--wallet <name>` to target a specific sub-wallet. If omitted, you'll be prompted to pick one interactively.
+>
+> **Autopilot dashboard:** Each wallet can have multiple AI strategies. The dashboard shows strategy name, status, config, and a performance comparison table across all available strategies with the active one highlighted.
+>
 > **Close position:** Select an open position from the list, and it will be closed at market price with a reduce-only order in the opposite direction — no manual price or size entry needed.
 >
 > **Cancel order:** Open orders are fetched from Hyperliquid and shown as a selectable list with coin, side, size, and price — no need to look up order IDs.
 >
-> **Autopilot:** When autopilot is ON, manual order placement (`minara perps order`) is blocked to prevent conflicts with AI-managed trades. Turn off autopilot first via `minara perps autopilot`.
+> **Autopilot:** When autopilot is ON for a wallet, manual order placement on that wallet is blocked to prevent conflicts with AI-managed trades. Turn off autopilot first via `minara perps autopilot`.
 >
 > **Ask AI → Quick Order:** After the AI analysis, you can instantly place a market order based on the recommended direction, entry price, and position size — no need to re-enter parameters.
 
@@ -340,12 +357,12 @@ minara --help
 
 ## Testing
 
-Test suite built with [Vitest](https://vitest.dev/) — 119 tests covering unit, API, and command integration layers.
+Test suite built with [Vitest](https://vitest.dev/) — 251 tests covering unit, API, command integration, and formatter layers.
 
 ```bash
 npm test                # Run all tests
 npm run test:watch      # Watch mode
-npm run test:coverage   # With coverage report
+npm run test:coverage   # With v8 coverage report
 ```
 
 ## Security
