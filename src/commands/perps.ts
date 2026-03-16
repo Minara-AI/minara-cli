@@ -1161,12 +1161,15 @@ const autopilotCmd = new Command('autopilot')
     } else if (wallets.length === 1) {
       wallet = wallets[0];
     } else {
+      const summaries = await Promise.all(
+        wallets.map((w) => perpsApi.getSubAccountSummary(creds.accessToken, getSubAccountId(w))),
+      );
       wallet = await select<PerpSubAccount>({
         message: 'Select wallet for autopilot:',
-        choices: wallets.map((w) => {
+        choices: wallets.map((w, i) => {
           const wId = getSubAccountId(w);
           const wStrategies = getAllStrategiesForWallet(allStates, wId, !!w.isDefault);
-          const activeCount = wStrategies.filter((s) => s.active).length;
+          const activeCount = wStrategies.filter((st) => st.active).length;
           let apLabel: string;
           if (wStrategies.length === 0) {
             apLabel = chalk.dim(' [No Strategy]');
@@ -1175,8 +1178,11 @@ const autopilotCmd = new Command('autopilot')
           } else {
             apLabel = chalk.dim(` [${wStrategies.length} strategies, all OFF]`);
           }
+          const raw = summaries[i].success && summaries[i].data
+            ? summaries[i].data as Record<string, unknown> : w as Record<string, unknown>;
+          const s = normalizeWalletSummary(raw);
           return {
-            name: `${getSubAccountLabel(w)}  ${chalk.dim(fmt(Number(w.equityValue ?? 0)))}${apLabel}`,
+            name: `${getSubAccountLabel(w)}  ${chalk.dim(fmt(s.equity))}${apLabel}`,
             value: w,
           };
         }),
@@ -1794,22 +1800,30 @@ const sweepCmd = new Command('sweep')
       fetchSubAccounts(creds.accessToken),
       getAllAutopilotStates(creds.accessToken),
     ]);
-    loadSpin.stop();
 
     const nonDefault = wallets.filter((w) => !w.isDefault);
     if (nonDefault.length === 0) {
+      loadSpin.stop();
       info('No sub-wallets to sweep from. Only the default wallet exists.');
       return;
     }
 
+    const summaries = await Promise.all(
+      nonDefault.map((w) => perpsApi.getSubAccountSummary(creds.accessToken, getSubAccountId(w))),
+    );
+    loadSpin.stop();
+
     const wallet = await select<PerpSubAccount>({
       message: 'Select sub-wallet to sweep funds FROM:',
-      choices: nonDefault.map((w) => {
+      choices: nonDefault.map((w, i) => {
         const wId = getSubAccountId(w);
         const wStrategies = getAllStrategiesForWallet(allStates, wId, !!w.isDefault);
         const hasActive = wStrategies.some((s) => s.active);
         const apLabel = hasActive ? chalk.red(' [AP ON — cannot sweep]') : '';
-        const eq = fmt(Number(w.equityValue ?? 0));
+        const raw = summaries[i].success && summaries[i].data
+          ? summaries[i].data as Record<string, unknown> : w as Record<string, unknown>;
+        const s = normalizeWalletSummary(raw);
+        const eq = fmt(s.equity);
         return {
           name: `${getSubAccountLabel(w)}  ${chalk.dim(eq)}${apLabel}`,
           value: w,
@@ -1866,26 +1880,38 @@ const transferCmd = new Command('transfer')
 
     const spin = spinner('Loading wallets…');
     const wallets = await fetchSubAccounts(creds.accessToken);
-    spin.stop();
-
     if (wallets.length < 2) {
+      spin.stop();
       info('You need at least 2 wallets to transfer between them. Create one with: minara perps create-wallet');
       return;
     }
+    const summaries = await Promise.all(
+      wallets.map((w) => perpsApi.getSubAccountSummary(creds.accessToken, getSubAccountId(w))),
+    );
+    spin.stop();
+
+    const walletLabel = (w: PerpSubAccount, i: number) => {
+      const raw = summaries[i].success && summaries[i].data
+        ? summaries[i].data as Record<string, unknown> : w as Record<string, unknown>;
+      const s = normalizeWalletSummary(raw);
+      return `${getSubAccountLabel(w)}  ${chalk.dim(fmt(s.equity))}`;
+    };
 
     const from = await select<PerpSubAccount>({
       message: 'Transfer FROM:',
-      choices: wallets.map((w) => ({
-        name: `${getSubAccountLabel(w)}  ${chalk.dim(fmt(Number(w.equityValue ?? 0)))}`,
+      choices: wallets.map((w, i) => ({
+        name: walletLabel(w, i),
         value: w,
       })),
     });
 
-    const toChoices = wallets.filter((w) => getSubAccountId(w) !== getSubAccountId(from));
+    const toChoices = wallets
+      .map((w, i) => ({ w, i }))
+      .filter(({ w }) => getSubAccountId(w) !== getSubAccountId(from));
     const to = await select<PerpSubAccount>({
       message: 'Transfer TO:',
-      choices: toChoices.map((w) => ({
-        name: `${getSubAccountLabel(w)}  ${chalk.dim(fmt(Number(w.equityValue ?? 0)))}`,
+      choices: toChoices.map(({ w, i }) => ({
+        name: walletLabel(w, i),
         value: w,
       })),
     });
