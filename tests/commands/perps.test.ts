@@ -107,6 +107,15 @@ function getCmd(name: string) {
 beforeEach(() => {
   vi.clearAllMocks();
   mockRequireAuth.mockReturnValue({ accessToken: 'test-token' });
+  // Default: return HL-format summary for any sub-account so wallet pickers work
+  mockGetSubAccountSummary.mockResolvedValue({
+    success: true,
+    data: {
+      marginSummary: { accountValue: '100', totalNtlPos: '0', totalMarginUsed: '0' },
+      withdrawable: '50',
+      assetPositions: [],
+    },
+  });
 });
 
 const WALLET_DEFAULT = {
