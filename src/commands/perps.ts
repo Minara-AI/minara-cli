@@ -121,10 +121,18 @@ async function pickSubAccount(token: string, message = 'Select wallet:'): Promis
     return null;
   }
   if (wallets.length === 1) return wallets[0];
+
+  const summaries = await Promise.all(
+    wallets.map((w) => perpsApi.getSubAccountSummary(token, getSubAccountId(w))),
+  );
+
   return select<PerpSubAccount>({
     message,
-    choices: wallets.map((w) => {
-      const eq = fmt(Number(w.equityValue ?? 0));
+    choices: wallets.map((w, i) => {
+      const raw = summaries[i].success && summaries[i].data
+        ? summaries[i].data as Record<string, unknown> : w as Record<string, unknown>;
+      const s = normalizeWalletSummary(raw);
+      const eq = fmt(s.equity);
       const addr = w.address ? chalk.yellow(w.address) : '';
       return {
         name: `${getSubAccountLabel(w)}  ${chalk.dim(eq)}  ${addr ? chalk.dim(addr.slice(0, 10) + '…') : ''}`,
@@ -162,10 +170,16 @@ async function resolveWallet(
   } else if (wallets.length === 1) {
     wallet = wallets[0];
   } else {
+    const summaries = await Promise.all(
+      wallets.map((w) => perpsApi.getSubAccountSummary(token, getSubAccountId(w))),
+    );
     wallet = await select<PerpSubAccount>({
       message,
-      choices: wallets.map((w) => {
-        const eq = fmt(Number(w.equityValue ?? 0));
+      choices: wallets.map((w, i) => {
+        const raw = summaries[i].success && summaries[i].data
+          ? summaries[i].data as Record<string, unknown> : w as Record<string, unknown>;
+        const s = normalizeWalletSummary(raw);
+        const eq = fmt(s.equity);
         return {
           name: `${getSubAccountLabel(w)}  ${chalk.dim(eq)}`,
           value: w,
