@@ -132,7 +132,7 @@ async function pickSubAccount(token: string, message = 'Select wallet:'): Promis
       const raw = summaries[i].success && summaries[i].data
         ? summaries[i].data as Record<string, unknown> : w as Record<string, unknown>;
       const s = normalizeWalletSummary(raw);
-      const eq = fmt(s.equity);
+      const eq = fmt(s.available);
       const addr = w.address ? chalk.yellow(w.address) : '';
       return {
         name: `${getSubAccountLabel(w)}  ${chalk.dim(eq)}  ${addr ? chalk.dim(addr.slice(0, 10) + '…') : ''}`,
@@ -179,7 +179,7 @@ async function resolveWallet(
         const raw = summaries[i].success && summaries[i].data
           ? summaries[i].data as Record<string, unknown> : w as Record<string, unknown>;
         const s = normalizeWalletSummary(raw);
-        const eq = fmt(s.equity);
+        const eq = fmt(s.available);
         return {
           name: `${getSubAccountLabel(w)}  ${chalk.dim(eq)}`,
           value: w,
@@ -1182,7 +1182,7 @@ const autopilotCmd = new Command('autopilot')
             ? summaries[i].data as Record<string, unknown> : w as Record<string, unknown>;
           const s = normalizeWalletSummary(raw);
           return {
-            name: `${getSubAccountLabel(w)}  ${chalk.dim(fmt(s.equity))}${apLabel}`,
+            name: `${getSubAccountLabel(w)}  ${chalk.dim(fmt(s.available))}${apLabel}`,
             value: w,
           };
         }),
@@ -1823,7 +1823,7 @@ const sweepCmd = new Command('sweep')
         const raw = summaries[i].success && summaries[i].data
           ? summaries[i].data as Record<string, unknown> : w as Record<string, unknown>;
         const s = normalizeWalletSummary(raw);
-        const eq = fmt(s.equity);
+        const eq = fmt(s.available);
         return {
           name: `${getSubAccountLabel(w)}  ${chalk.dim(eq)}${apLabel}`,
           value: w,
@@ -1894,7 +1894,7 @@ const transferCmd = new Command('transfer')
       const raw = summaries[i].success && summaries[i].data
         ? summaries[i].data as Record<string, unknown> : w as Record<string, unknown>;
       const s = normalizeWalletSummary(raw);
-      return `${getSubAccountLabel(w)}  ${chalk.dim(fmt(s.equity))}`;
+      return `${getSubAccountLabel(w)}  ${chalk.dim(fmt(s.available))}`;
     };
 
     const from = await select<PerpSubAccount>({
