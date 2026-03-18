@@ -522,11 +522,29 @@ const positionsCmd = new Command('positions')
 
 // ─── order ───────────────────────────────────────────────────────────────
 
+interface OrderOpts {
+  yes?: boolean;
+  side?: string;
+  symbol?: string;
+  type?: string;
+  price?: string;
+  size?: string;
+  reduceOnly?: boolean;
+  grouping?: string;
+}
+
 const orderCmd = new Command('order')
   .description('Place a perps order')
   .option(WALLET_OPT[0], WALLET_OPT[1])
   .option('-y, --yes', 'Skip confirmation')
-  .action(wrapAction(async (opts) => {
+  .option('-S, --side <side>', 'Order side: long/buy or short/sell')
+  .option('-s, --symbol <symbol>', 'Asset symbol (e.g. BTC, ETH)')
+  .option('-T, --type <type>', 'Order type: market or limit', 'market')
+  .option('-p, --price <price>', 'Limit price (required for limit orders)')
+  .option('-z, --size <size>', 'Position size in contracts')
+  .option('-r, --reduce-only', 'Reduce-only order')
+  .option('-g, --grouping <grouping>', 'TP/SL grouping: na, normalTpsl, positionTpsl', 'na')
+  .action(wrapAction(async (opts: OrderOpts) => {
     const creds = requireAuth();
 
     const resolved = await resolveWallet(creds.accessToken, opts.wallet, 'Place order on which wallet?');
@@ -549,6 +567,9 @@ const orderCmd = new Command('order')
       return;
     }
 
+    // Determine if running in non-interactive mode
+    const nonInteractive = opts.side && opts.symbol && opts.size;
+
     info('Building a Hyperliquid perps order…');
 
     const dataSpin = spinner('Fetching market data…');
@@ -564,16 +585,33 @@ const orderCmd = new Command('order')
       leverageMap.set(l.coin.toUpperCase(), { value: l.leverageValue, type: l.leverageType });
     }
 
-    const isBuy = await select({
-      message: 'Side:',
-      choices: [
-        { name: 'Long  (buy)', value: true },
-        { name: 'Short (sell)', value: false },
-      ],
-    });
+    // ── Side ─────────────────────────────────────────────────────────────
+    let isBuy: boolean;
+    if (opts.side) {
+      const sideLower = opts.side.toLowerCase();
+      if (sideLower === 'long' || sideLower === 'buy') {
+        isBuy = true;
+      } else if (sideLower === 'short' || sideLower === 'sell') {
+        isBuy = false;
+      } else {
+        console.error(chalk.red('✖'), `Invalid side: ${opts.side}. Use 'long', 'buy', 'short', or 'sell'.`);
+        process.exit(1);
+      }
+    } else {
+      isBuy = await select({
+        message: 'Side:',
+        choices: [
+          { name: 'Long  (buy)', value: true },
+          { name: 'Short (sell)', value: false },
+        ],
+      });
+    }
 
+    // ── Asset ────────────────────────────────────────────────────────────
     let asset: string;
-    if (assets.length > 0) {
+    if (opts.symbol) {
+      asset = opts.symbol.toUpperCase();
+    } else if (assets.length > 0) {
       asset = await select({
         message: 'Asset:',
         choices: assets.map((a) => {
@@ -597,25 +635,57 @@ const orderCmd = new Command('order')
       info(`No leverage set for ${asset} — use 'minara perps leverage' to configure`);
     }
 
-    const orderType = await select({
-      message: 'Order type:',
-      choices: [
-        { name: 'Market', value: 'market' as const },
-        { name: 'Limit', value: 'limit' as const },
-      ],
-    });
+    // ── Order Type ───────────────────────────────────────────────────────
+    let orderType: 'market' | 'limit';
+    if (opts.type) {
+      const typeLower = opts.type.toLowerCase();
+      if (typeLower === 'market') {
+        orderType = 'market';
+      } else if (typeLower === 'limit') {
+        orderType = 'limit';
+      } else {
+        console.error(chalk.red('✖'), `Invalid order type: ${opts.type}. Use 'market' or 'limit'.`);
+        process.exit(1);
+      }
+    } else {
+      orderType = await select({
+        message: 'Order type:',
+        choices: [
+          { name: 'Market', value: 'market' as const },
+          { name: 'Limit', value: 'limit' as const },
+        ],
+      });
+    }
 
+    // ── Price ────────────────────────────────────────────────────────────
     const assetMeta = assets.find((a) => a.name.toUpperCase() === asset.toUpperCase());
     let limitPx: string;
     let marketPx: number | undefined;
+
     if (orderType === 'limit') {
-      limitPx = await input({ message: 'Limit price:' });
+      if (opts.price) {
+        limitPx = opts.price;
+      } else if (nonInteractive) {
+        console.error(chalk.red('✖'), 'Limit orders require --price');
+        process.exit(1);
+      } else {
+        limitPx = await input({ message: 'Limit price:' });
+      }
     } else {
+      // Market order
       marketPx = assetMeta?.markPx;
-      if (marketPx && marketPx > 0) {
+      if (opts.price) {
+        // User specified price for market order (use as trigger)
+        limitPx = opts.price;
+        marketPx = Number(opts.price);
+        info(`Market order at ~$${marketPx}`);
+      } else if (marketPx && marketPx > 0) {
         const slippagePx = isBuy ? marketPx * 1.01 : marketPx * 0.99;
         limitPx = slippagePx.toPrecision(5);
         info(`Market order at ~$${marketPx}`);
+      } else if (nonInteractive) {
+        console.error(chalk.red('✖'), `Could not fetch current price for ${asset}. Use --price to specify.`);
+        process.exit(1);
       } else {
         warn(`Could not fetch current price for ${asset}. Enter the approximate market price.`);
         limitPx = await input({ message: 'Price:' });
@@ -623,17 +693,53 @@ const orderCmd = new Command('order')
       }
     }
 
-    const sz = await input({ message: 'Size (in contracts):' });
-    const reduceOnly = await confirm({ message: 'Reduce only?', default: false });
+    // ── Size ─────────────────────────────────────────────────────────────
+    let sz: string;
+    if (opts.size) {
+      sz = opts.size;
+    } else if (nonInteractive) {
+      console.error(chalk.red('✖'), 'Size is required. Use --size');
+      process.exit(1);
+    } else {
+      sz = await input({ message: 'Size (in contracts):' });
+    }
 
-    const grouping = await select({
-      message: 'Grouping (TP/SL):',
-      choices: [
-        { name: 'None', value: 'na' as const },
-        { name: 'Normal TP/SL', value: 'normalTpsl' as const },
-        { name: 'Position TP/SL', value: 'positionTpsl' as const },
-      ],
-    });
+    // ── Reduce Only ──────────────────────────────────────────────────────
+    let reduceOnly: boolean;
+    if (opts.reduceOnly !== undefined) {
+      reduceOnly = opts.reduceOnly;
+    } else if (nonInteractive) {
+      reduceOnly = false;
+    } else {
+      reduceOnly = await confirm({ message: 'Reduce only?', default: false });
+    }
+
+    // ── Grouping ─────────────────────────────────────────────────────────
+    let grouping: 'na' | 'normalTpsl' | 'positionTpsl';
+    if (opts.grouping) {
+      const groupingLower = opts.grouping.toLowerCase();
+      if (groupingLower === 'na' || groupingLower === 'none') {
+        grouping = 'na';
+      } else if (groupingLower === 'normaltpsl' || groupingLower === 'normal_tpsl') {
+        grouping = 'normalTpsl';
+      } else if (groupingLower === 'positiontpsl' || groupingLower === 'position_tpsl') {
+        grouping = 'positionTpsl';
+      } else {
+        console.error(chalk.red('✖'), `Invalid grouping: ${opts.grouping}. Use 'na', 'normalTpsl', or 'positionTpsl'.`);
+        process.exit(1);
+      }
+    } else if (nonInteractive) {
+      grouping = 'na';
+    } else {
+      grouping = await select({
+        message: 'Grouping (TP/SL):',
+        choices: [
+          { name: 'None', value: 'na' as const },
+          { name: 'Normal TP/SL', value: 'normalTpsl' as const },
+          { name: 'Position TP/SL', value: 'positionTpsl' as const },
+        ],
+      });
+    }
 
     const order: PerpsOrder = {
       a: asset,
