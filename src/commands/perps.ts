@@ -531,6 +531,7 @@ interface OrderOpts {
   size?: string;
   reduceOnly?: boolean;
   grouping?: string;
+  wallet?: string;
 }
 
 const orderCmd = new Command('order')
