@@ -532,6 +532,8 @@ interface OrderOpts {
   reduceOnly?: boolean;
   grouping?: string;
   wallet?: string;
+  /** trigger type: tp (take profit) or sl (stop loss), for market orders only */
+  tpsl?: 'tp' | 'sl';
 }
 
 const orderCmd = new Command('order')
@@ -545,6 +547,7 @@ const orderCmd = new Command('order')
   .option('-z, --size <size>', 'Position size in contracts')
   .option('-r, --reduce-only', 'Reduce-only order')
   .option('-g, --grouping <grouping>', 'TP/SL grouping: na, normalTpsl, positionTpsl', 'na')
+  .option('--tpsl <type>', 'Trigger type for market orders: tp (take profit) or sl (stop loss)', 'tp')
   .action(wrapAction(async (opts: OrderOpts) => {
     const creds = requireAuth();
 
@@ -750,7 +753,7 @@ const orderCmd = new Command('order')
       r: reduceOnly,
       t: orderType === 'limit'
         ? { limit: { tif: 'Gtc' } }
-        : { trigger: { triggerPx: String(marketPx ?? limitPx), tpsl: 'tp', isMarket: true } },
+        : { trigger: { triggerPx: String(marketPx ?? limitPx), tpsl: opts.tpsl ?? 'tp', isMarket: true } },
     };
 
     const priceLabel = orderType === 'market' ? `Market (~$${marketPx ?? limitPx})` : `$${limitPx}`;
@@ -762,7 +765,7 @@ const orderCmd = new Command('order')
     console.log(`  Asset        : ${chalk.bold(order.a)}`);
     console.log(`  Side         : ${formatOrderSide(order.b ? 'buy' : 'sell')}`);
     console.log(`  Leverage     : ${chalk.cyan(levLabel)}`);
-    console.log(`  Type         : ${orderType === 'market' ? 'Market' : 'Limit (GTC)'}`);
+    console.log(`  Type         : ${orderType === 'market' ? `Market (${opts.tpsl === 'sl' ? 'Stop Loss' : 'Take Profit'})` : 'Limit (GTC)'}`);
     console.log(`  Price        : ${chalk.yellow(priceLabel)}`);
     console.log(`  Size         : ${chalk.bold(order.s)}`);
     console.log(`  Reduce Only  : ${order.r ? chalk.yellow('Yes') : 'No'}`);
