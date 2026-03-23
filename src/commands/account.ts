@@ -13,7 +13,7 @@ const DEFAULT_WALLETS = new Set([
 
 // Descriptions for specific wallet types
 const WALLET_DESCRIPTIONS: Record<string, string> = {
-  'perpetual-evm': 'USDC on Arbitrum only',
+  'perpetual-evm': 'Only supports USDC deposits on Arbitrum',
 };
 
 export const accountCommand = new Command('account')
