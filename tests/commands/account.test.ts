@@ -37,7 +37,7 @@ describe('account command', () => {
         email: 'alice@test.com',
         username: 'alice',
         invitationCode: 'INV123',
-        wallets: { 'spot-evm': '0xWallet' },
+        wallets: { 'abstraction-evm': '0xWallet' },
         accounts: { google: {} },
       },
     });
@@ -59,7 +59,12 @@ describe('account command', () => {
         id: 'user-42',
         displayName: 'Bob',
         email: 'bob@test.com',
-        wallets: { 'spot-evm': '0xBobWallet', 'abstraction-solana': 'SolAddr' },
+        wallets: {
+          'spot-evm': '0xBobWallet',
+          'abstraction-solana': 'SolAddr',
+          'abstraction-evm': '0xABob',
+          'perpetual-evm': '0xPBob',
+        },
       },
     });
 
@@ -75,8 +80,43 @@ describe('account command', () => {
     const fullOutput = output.join('\n');
     expect(fullOutput).toContain('Bob');
     expect(fullOutput).toContain('bob@test.com');
-    expect(fullOutput).toContain('0xBobWallet');
+    // Should NOT contain internal wallets by default
+    expect(fullOutput).not.toContain('0xBobWallet');
+    // Should contain default wallets
     expect(fullOutput).toContain('SolAddr');
+    expect(fullOutput).toContain('0xABob');
+    expect(fullOutput).toContain('0xPBob');
+
+    logSpy.mockRestore();
+  });
+
+  it('should display all wallets with --show-all flag', async () => {
+    mockGetCurrentUser.mockResolvedValue({
+      success: true,
+      data: {
+        id: 'user-42',
+        displayName: 'Charlie',
+        email: 'charlie@test.com',
+        wallets: {
+          'spot-evm': '0xSpotWallet',
+          'abstraction-solana': 'SolAbstraction',
+        },
+      },
+    });
+
+    const { accountCommand } = await import('../../src/commands/account.js');
+
+    const output: string[] = [];
+    const logSpy = vi.spyOn(console, 'log').mockImplementation((...args) => {
+      output.push(args.join(' '));
+    });
+
+    await accountCommand.parseAsync(['--show-all'], { from: 'user' });
+
+    const fullOutput = output.join('\n');
+    expect(fullOutput).toContain('Charlie');
+    expect(fullOutput).toContain('0xSpotWallet');
+    expect(fullOutput).toContain('SolAbstraction');
 
     logSpy.mockRestore();
   });

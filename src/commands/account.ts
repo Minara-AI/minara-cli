@@ -4,10 +4,23 @@ import { getCurrentUser } from '../api/auth.js';
 import { requireAuth } from '../config.js';
 import { spinner, unwrapApi, wrapAction } from '../utils.js';
 
+// Wallets to show by default (user-facing addresses)
+const DEFAULT_WALLETS = new Set([
+  'abstraction-evm',
+  'abstraction-solana',
+  'perpetual-evm',
+]);
+
+// Descriptions for specific wallet types
+const WALLET_DESCRIPTIONS: Record<string, string> = {
+  'perpetual-evm': 'USDC on Arbitrum only',
+};
+
 export const accountCommand = new Command('account')
   .alias('me')
   .description('View your Minara account info')
-  .action(wrapAction(async () => {
+  .option('--show-all', 'Show all wallets including internal addresses')
+  .action(wrapAction(async (opts) => {
     const creds = requireAuth();
     const spin = spinner('Fetching account info…');
     const res = await getCurrentUser(creds.accessToken);
@@ -24,8 +37,17 @@ export const accountCommand = new Command('account')
     if (u.invitationCode) console.log(`  Invite Code : ${u.invitationCode}`);
     if (u.wallets && Object.keys(u.wallets).length > 0) {
       console.log(`  Wallets:`);
+      const showAll = opts.showAll === true;
       for (const [type, addr] of Object.entries(u.wallets)) {
-        console.log(`    ${chalk.dim(type)} : ${addr}`);
+        // Filter wallets: only show default wallets unless --show-all is used
+        if (showAll || DEFAULT_WALLETS.has(type)) {
+          const description = WALLET_DESCRIPTIONS[type];
+          if (description) {
+            console.log(`    ${chalk.dim(type)} : ${addr} ${chalk.dim(`(${description})`)}`);
+          } else {
+            console.log(`    ${chalk.dim(type)} : ${addr}`);
+          }
+        }
       }
     }
     if (u.accounts && Object.keys(u.accounts).length > 0) {
