@@ -224,7 +224,8 @@ const buyCmd = new Command('buy')
   }));
 
 export const depositCommand = new Command('deposit')
-  .description('Deposit to spot wallet or perps account, or buy with credit card')
+  .alias('receive')
+  .description('Deposit / receive to spot wallet or perps account, or buy with credit card')
   .addCommand(spotCmd)
   .addCommand(perpsCmd)
   .addCommand(buyCmd)

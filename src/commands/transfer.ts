@@ -8,7 +8,8 @@ import { requireTouchId } from '../touchid.js';
 import { printTxResult } from '../formatters.js';
 
 export const transferCommand = new Command('transfer')
-  .description('Transfer tokens to another address')
+  .alias('send')
+  .description('Transfer / send tokens to another address')
   .option('-c, --chain <chain>', 'Blockchain')
   .option('-t, --token <address|ticker>', 'Token contract address or ticker symbol')
   .option('-a, --amount <amount>', 'Token amount to send')

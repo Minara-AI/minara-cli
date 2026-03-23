@@ -68,6 +68,12 @@ beforeEach(() => {
 });
 
 describe('deposit command', () => {
+  it('should have "receive" registered as alias', async () => {
+    const { depositCommand } = await import('../../src/commands/deposit.js');
+    expect(depositCommand.name()).toBe('deposit');
+    expect(depositCommand.aliases()).toContain('receive');
+  });
+
   describe('deposit spot', () => {
     it('should call requireAuth to verify login', async () => {
       mockGetAccount.mockResolvedValue({

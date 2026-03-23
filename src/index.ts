@@ -24,7 +24,7 @@ import { perpsCommand } from './commands/perps.js';
 import { limitOrderCommand } from './commands/limit-order.js';
 
 // AI, Market, Premium, Config
-import { chatCommand } from './commands/chat.js';
+import { chatCommand, askCommand, researchCommand } from './commands/chat.js';
 import { discoverCommand } from './commands/discover.js';
 import { premiumCommand } from './commands/premium.js';
 import { configCommand } from './commands/config.js';
@@ -74,6 +74,8 @@ program.addCommand(limitOrderCommand);
 
 // ── AI Chat ──────────────────────────────────────────────────────────────
 program.addCommand(chatCommand);
+program.addCommand(askCommand);
+program.addCommand(researchCommand);
 
 // ── Market ───────────────────────────────────────────────────────────────
 program.addCommand(discoverCommand);

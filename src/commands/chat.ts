@@ -72,18 +72,12 @@ async function* parseSSE(response: Response): AsyncGenerator<string> {
   }
 }
 
-export const chatCommand = new Command('chat')
-  .description('Chat with Minara AI assistant (interactive REPL when no message given)')
-  .argument('[message]', 'Send a single message and exit')
-  .option('-c, --chat-id <id>', 'Continue existing chat')
-  .option('--list', 'List past chats')
-  .option('--history <chatId>', 'Show chat history')
-  .option('--thinking', 'Enable thinking/degen mode')
-  .option('--quality', 'Use quality mode instead of the default fast mode')
-  .action(wrapAction(async (messageArg?: string, opts?: {
-    chatId?: string; list?: boolean; history?: string;
-    thinking?: boolean; quality?: boolean;
-  }) => {
+interface ChatOpts {
+  chatId?: string; list?: boolean; history?: string;
+  thinking?: boolean; quality?: boolean;
+}
+
+async function chatAction(messageArg?: string, opts?: ChatOpts): Promise<void> {
     const creds = requireAuth();
 
     // ── List chats ───────────────────────────────────────────────────────
@@ -286,4 +280,32 @@ export const chatCommand = new Command('chat')
       }
       await sendAndPrintWithPause(userMsg);
     }
+}
+
+export const chatCommand = new Command('chat')
+  .description('Chat with Minara AI assistant (interactive REPL when no message given)')
+  .argument('[message]', 'Send a single message and exit')
+  .option('-c, --chat-id <id>', 'Continue existing chat')
+  .option('--list', 'List past chats')
+  .option('--history <chatId>', 'Show chat history')
+  .option('--thinking', 'Enable thinking/degen mode')
+  .option('--quality', 'Use quality mode instead of the default fast mode')
+  .action(wrapAction(chatAction));
+
+export const askCommand = new Command('ask')
+  .description('Quick AI chat (fast mode) — alias for chat')
+  .argument('[message]', 'Send a single message and exit')
+  .option('-c, --chat-id <id>', 'Continue existing chat')
+  .option('--thinking', 'Enable thinking/degen mode')
+  .action(wrapAction(async (messageArg?: string, opts?: { chatId?: string; thinking?: boolean }) => {
+    await chatAction(messageArg, { ...opts, quality: false });
+  }));
+
+export const researchCommand = new Command('research')
+  .description('Deep AI research (quality mode) — alias for chat --quality')
+  .argument('[message]', 'Send a single message and exit')
+  .option('-c, --chat-id <id>', 'Continue existing chat')
+  .option('--thinking', 'Enable thinking/degen mode')
+  .action(wrapAction(async (messageArg?: string, opts?: { chatId?: string; thinking?: boolean }) => {
+    await chatAction(messageArg, { ...opts, quality: true });
   }));

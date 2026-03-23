@@ -48,14 +48,14 @@ minara login
 # Check your account
 minara account
 
-# View deposit addresses
-minara deposit
+# Receive / deposit
+minara receive
 
-# Chat with Minara AI (interactive REPL)
-minara chat
+# Quick AI question
+minara ask "What's the best DeFi yield right now?"
 
-# Or send a single question
-minara chat "What's the best DeFi yield right now?"
+# Deep AI research
+minara research "Analyze ETH outlook for next quarter"
 
 # Swap tokens (chain auto-detected from token)
 minara swap -t '$BONK' -s buy -a 100
@@ -88,7 +88,8 @@ minara login -e user@mail.com # Email verification code
 | `minara assets`       | Full overview: spot holdings + perps account                   |
 | `minara assets spot`  | Spot wallet: portfolio value, cost, PnL, holdings              |
 | `minara assets perps` | Perps account: equity, margin, positions                       |
-| `minara deposit`      | Deposit to spot, perps, or buy crypto with credit card         |
+| `minara receive`      | Deposit / receive to spot, perps, or buy with credit card      |
+| `minara deposit`      | Same as `receive`                                              |
 | `minara deposit buy`  | Buy crypto with credit card via MoonPay                        |
 | `minara withdraw`     | Withdraw tokens to an external wallet                          |
 
@@ -97,9 +98,9 @@ minara balance                    # Quick total: Spot + Perps available balance
 minara assets                     # Full overview (spot + perps)
 minara assets spot                # Spot wallet with PnL breakdown
 minara assets perps               # Perps equity, margin, positions
-minara deposit                    # Interactive: Spot / Perps / Buy with credit card
-minara deposit spot               # Show spot wallet deposit addresses (EVM + Solana)
-minara deposit perps              # Perps: show Arbitrum deposit address, or transfer from Spot → Perps
+minara receive                    # Interactive: Spot / Perps / Buy with credit card
+minara receive spot               # Show spot wallet deposit addresses (EVM + Solana)
+minara receive perps              # Perps: show Arbitrum deposit address, or transfer from Spot → Perps
 minara deposit buy                # Buy crypto with credit card via MoonPay (opens browser)
 minara withdraw -c solana -t '$SOL' -a 10 --to <address>
 minara withdraw                   # Interactive mode (accepts ticker or address)
@@ -107,18 +108,28 @@ minara withdraw                   # Interactive mode (accepts ticker or address)
 
 ### Spot Trading
 
-| Command           | Description                        |
-| ----------------- | ---------------------------------- |
-| `minara swap`     | Swap tokens (chain auto-detected)  |
-| `minara transfer` | Transfer tokens to another address |
+| Command           | Description                                          |
+| ----------------- | ---------------------------------------------------- |
+| `minara swap`     | Swap tokens (chain auto-detected)                    |
+| `minara send`     | Send / transfer tokens to another address             |
+| `minara transfer` | Same as `send`                                       |
 
 ```bash
 minara swap                        # Interactive: side → token → amount
 minara swap -s buy -t '$BONK' -a 100              # Buy by ticker (chain auto-detected)
 minara swap -s sell -t '$NVDAx' -a all             # Sell entire balance
 minara swap --dry-run              # Simulate without executing
+
+# Send tokens
+minara send -c solana -t '$SOL' -a 5 --to <address>       # Send SOL on Solana
+minara send -c base -t '$USDC' -a 200 --to <address>      # Send USDC on Base
+minara send -c ethereum -t '$ETH' -a 0.1 --to <addr>      # Send ETH on Ethereum
+minara send                        # Interactive mode
+minara transfer -c solana -t '$SOL' -a 5 --to <address>   # Same as send
 ```
 
+> **`send` vs `withdraw`:** `send` is an alias for `transfer` — both transfer tokens to another address. `withdraw` is a separate command that moves tokens from your Minara wallet to an external address (shows your current assets before prompting).
+>
 > **Chain abstraction:** The chain is automatically detected from the token. If a token exists on multiple chains (e.g. USDC), you'll be prompted to pick one, sorted by gas cost (lowest first). Sell mode supports `all` to sell full balance, and caps amounts exceeding your balance.
 >
 > **Token input:** All token fields (`-t`) accept a `$TICKER` (e.g. `$BONK`), a token name, or a contract address.
@@ -193,23 +204,36 @@ minara limit-order cancel abc123   # Cancel order by ID
 
 ### AI Chat
 
-| Command                          | Description                                   |
-| -------------------------------- | --------------------------------------------- |
-| `minara chat`                    | Enter interactive REPL (Python/Node.js-style) |
-| `minara chat [message]`          | Send a single message and exit                |
-| `minara chat --list`             | List all your conversations                   |
-| `minara chat --history <chatId>` | View messages in a conversation               |
-| `minara chat -c <chatId>`        | Continue an existing conversation             |
+| Command                          | Description                                       |
+| -------------------------------- | ------------------------------------------------- |
+| `minara ask [message]`           | Quick AI chat (fast mode)                         |
+| `minara research [message]`      | Deep AI research (quality mode)                   |
+| `minara chat`                    | Enter interactive REPL (Python/Node.js-style)     |
+| `minara chat [message]`          | Send a single message and exit                    |
+| `minara chat --list`             | List all your conversations                       |
+| `minara chat --history <chatId>` | View messages in a conversation                   |
+| `minara chat -c <chatId>`        | Continue an existing conversation                 |
 
 ```bash
+# Quick questions (fast mode)
+minara ask "What is the current BTC price?"
+minara ask "Is SOL a good buy right now?"
+
+# Deep research (quality mode)
+minara research "Analyze ETH outlook for next quarter"
+minara research "Compare Layer 2 rollup ecosystems"
+
+# Full chat with all options
 minara chat                                    # Enter interactive REPL mode
 minara chat "What is the current BTC price?"   # Single question, streamed answer
-minara chat --quality "Analyze ETH outlook"     # Quality mode (default: fast)
+minara chat --quality "Analyze ETH outlook"     # Quality mode (same as research)
 minara chat --thinking "Analyze ETH outlook"   # Enable reasoning mode
 minara chat -c <chatId>                        # Continue a specific chat in REPL
 minara chat --list                             # List past conversations
 minara chat --history <chatId>                 # Replay a specific conversation
 ```
+
+> **`ask` vs `research` vs `chat`:** `ask` is a shortcut for `chat` in fast mode — quick questions, real-time prices, brief answers. `research` is a shortcut for `chat --quality` — deeper analysis, longer responses, more thorough reasoning. `chat` gives you the full feature set including interactive REPL, conversation history, and all mode flags.
 
 **Interactive REPL mode** — When launched without a message argument, the chat enters an interactive session:
 
@@ -327,7 +351,7 @@ Minara CLI supports macOS Touch ID to protect all fund-related operations. When 
 minara config                     # Select "Touch ID" to enable / disable
 ```
 
-**Protected operations:** `withdraw`, `transfer`, `swap`, `deposit` (Spot→Perps transfer), `perps deposit`, `perps withdraw`, `perps order`, `perps close`, `limit-order create`
+**Protected operations:** `withdraw`, `send` / `transfer`, `swap`, `receive` / `deposit` (Spot→Perps transfer), `perps deposit`, `perps withdraw`, `perps order`, `perps close`, `limit-order create`
 
 > **Note:** Touch ID requires macOS with Touch ID hardware. The `--yes` flag skips the initial confirmation prompt but does **not** bypass transaction confirmation or Touch ID.
 
