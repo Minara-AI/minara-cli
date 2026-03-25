@@ -24,9 +24,19 @@ function flattenStock(item: Record<string, unknown>): Record<string, unknown> {
 const trendingCmd = new Command('trending')
   .description('View trending tokens or stocks')
   .argument('[category]', 'tokens or stocks (default: interactive)')
-  .action(wrapAction(async (categoryArg?: string) => {
-    let category = categoryArg?.toLowerCase();
-    if (!category || (category !== 'tokens' && category !== 'stocks')) {
+  .option('-t, --type <category>', 'Trending type: tokens or stocks (skips interactive prompt)')
+  .action(wrapAction(async (categoryArg?: string, options?: { type?: string }) => {
+    let category: string;
+    const typeOpt = options?.type?.toLowerCase() || categoryArg?.toLowerCase();
+
+    if (typeOpt === 'tokens' || typeOpt === 'token') {
+      category = 'tokens';
+    } else if (typeOpt === 'stocks' || typeOpt === 'stock') {
+      category = 'stocks';
+    } else if (!process.stdin.isTTY) {
+      // Non-interactive mode: default to tokens
+      category = 'tokens';
+    } else {
       category = await select({
         message: 'Trending:',
         choices: [
@@ -73,16 +83,29 @@ const trendingCmd = new Command('trending')
 const searchCmd = new Command('search')
   .description('Search for tokens or stocks')
   .argument('[keyword]', 'Search keyword')
-  .action(wrapAction(async (keywordArg?: string) => {
+  .option('-t, --type <category>', 'Search type: tokens or stocks (skips interactive prompt)')
+  .action(wrapAction(async (keywordArg?: string, options?: { type?: string }) => {
     const keyword = keywordArg ?? await input({ message: 'Search keyword:' });
 
-    const category = await select({
-      message: 'Search in:',
-      choices: [
-        { name: 'Tokens (crypto)', value: 'tokens' },
-        { name: 'Stocks', value: 'stocks' },
-      ],
-    });
+    let category: string;
+    const typeOpt = options?.type?.toLowerCase();
+
+    if (typeOpt === 'tokens' || typeOpt === 'token') {
+      category = 'tokens';
+    } else if (typeOpt === 'stocks' || typeOpt === 'stock') {
+      category = 'stocks';
+    } else if (!process.stdin.isTTY) {
+      // Non-interactive mode: default to tokens
+      category = 'tokens';
+    } else {
+      category = await select({
+        message: 'Search in:',
+        choices: [
+          { name: 'Tokens (crypto)', value: 'tokens' },
+          { name: 'Stocks', value: 'stocks' },
+        ],
+      });
+    }
 
     const spin = spinner(`Searching ${category}…`);
     const res = category === 'tokens'
