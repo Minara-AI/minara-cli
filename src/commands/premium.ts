@@ -335,7 +335,9 @@ async function handleCryptoCheckout(token: string, planId: string): Promise<void
 
 const buyCreditsCmd = new Command('buy-credits')
   .description('Buy a one-time credit package')
-  .action(wrapAction(async () => {
+  .option('-a, --amount <number>', 'Package price amount (e.g., 10, 20, 50)')
+  .option('-p, --pay <method>', 'Payment method: stripe or crypto')
+  .action(wrapAction(async (opts) => {
     const creds = requireAuth();
 
     const spin = spinner('Fetching packages…');
@@ -349,25 +351,48 @@ const buyCreditsCmd = new Command('buy-credits')
       return;
     }
 
-    // Select package
-    const selectedPkgId = await select({
-      message: 'Select a credit package:',
-      choices: packages.map((pkg) => ({
-        name: `$${pkg.amount} — ${Number(pkg.credit).toLocaleString()} credits`,
-        value: pkg._id,
-      })),
-    });
+    let selectedPkg: CreditPackage | undefined;
 
-    const selectedPkg = packages.find((p) => p._id === selectedPkgId)!;
+    if (opts.amount) {
+      // Non-interactive: find package by amount
+      const amount = Number(opts.amount);
+      selectedPkg = packages.find((p) => p.amount === amount);
+      if (!selectedPkg) {
+        const available = packages.map((p) => `$${p.amount}`).join(', ');
+        warn(`No package found for $${amount}. Available: ${available}`);
+        return;
+      }
+    } else {
+      // Interactive: select package
+      const selectedPkgId = await select({
+        message: 'Select a credit package:',
+        choices: packages.map((pkg) => ({
+          name: `$${pkg.amount} — ${Number(pkg.credit).toLocaleString()} credits`,
+          value: pkg._id,
+        })),
+      });
+      selectedPkg = packages.find((p) => p._id === selectedPkgId)!;
+    }
 
-    // Select payment method
-    const payMethod = await select({
-      message: 'Payment method:',
-      choices: [
-        { name: 'Credit Card (Stripe)', value: 'stripe' as const },
-        { name: 'Crypto (USDC on-chain)', value: 'crypto' as const },
-      ],
-    });
+    let payMethod: 'stripe' | 'crypto';
+
+    if (opts.pay) {
+      // Non-interactive: use provided payment method
+      if (opts.pay !== 'stripe' && opts.pay !== 'crypto') {
+        warn(`Invalid payment method: ${opts.pay}. Use 'stripe' or 'crypto'.`);
+        return;
+      }
+      payMethod = opts.pay;
+    } else {
+      // Interactive: select payment method
+      payMethod = await select({
+        message: 'Payment method:',
+        choices: [
+          { name: 'Credit Card (Stripe)', value: 'stripe' as const },
+          { name: 'Crypto (USDC on-chain)', value: 'crypto' as const },
+        ],
+      });
+    }
 
     console.log('');
     console.log(chalk.bold('Package Summary:'));
