@@ -23,11 +23,10 @@ function flattenStock(item: Record<string, unknown>): Record<string, unknown> {
 
 const trendingCmd = new Command('trending')
   .description('View trending tokens or stocks')
-  .argument('[category]', 'tokens or stocks (default: interactive)')
   .option('-t, --type <category>', 'Trending type: tokens or stocks (skips interactive prompt)')
-  .action(wrapAction(async (categoryArg?: string, options?: { type?: string }) => {
+  .action(wrapAction(async (options?: { type?: string }) => {
     let category: string;
-    const typeOpt = options?.type?.toLowerCase() || categoryArg?.toLowerCase();
+    const typeOpt = options?.type?.toLowerCase();
 
     if (typeOpt === 'tokens' || typeOpt === 'token') {
       category = 'tokens';
