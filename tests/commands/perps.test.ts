@@ -77,7 +77,7 @@ vi.mock('../../src/utils.js', async (importOriginal) => {
 
 import { requireAuth } from '../../src/config.js';
 import * as perpsApi from '../../src/api/perps.js';
-import { select, input, confirm } from '@inquirer/prompts';
+import { select, input, confirm, number } from '@inquirer/prompts';
 
 const mockRequireAuth = vi.mocked(requireAuth);
 const mockListSubAccounts = vi.mocked(perpsApi.listSubAccounts);
@@ -93,9 +93,12 @@ const mockEnableStrategy = vi.mocked(perpsApi.enableStrategy);
 const mockDisableStrategy = vi.mocked(perpsApi.disableStrategy);
 const mockCreateStrategy = vi.mocked(perpsApi.createStrategy);
 const mockGetSupportedSymbols = vi.mocked(perpsApi.getSupportedSymbols);
+const mockGetAssetMeta = vi.mocked(perpsApi.getAssetMeta);
+const mockUpdateLeverage = vi.mocked(perpsApi.updateLeverage);
 const mockSelect = vi.mocked(select);
 const mockInput = vi.mocked(input);
 const mockConfirm = vi.mocked(confirm);
+const mockNumber = vi.mocked(number);
 
 function getCmd(name: string) {
   // lazy import so each test gets a fresh singleton (Commander caches state)
@@ -582,6 +585,184 @@ describe('perps positions command (multi-wallet)', () => {
 
     expect(full).toContain('No open positions');
     expect(mockGetAccountSummary).toHaveBeenCalled();
+
+    logSpy.mockRestore();
+  });
+});
+
+// ─── leverage ───────────────────────────────────────────────────────────
+
+describe('perps leverage command', () => {
+  const ASSETS = [
+    { name: 'BTC', maxLeverage: 50, szDecimals: 5, markPx: 65000 },
+    { name: 'ETH', maxLeverage: 50, szDecimals: 4, markPx: 3500 },
+    { name: 'SOL', maxLeverage: 20, szDecimals: 3, markPx: 150 },
+  ];
+
+  beforeEach(() => {
+    vi.resetModules();
+    mockRequireAuth.mockReturnValue({ accessToken: 'test-token' });
+    mockGetSubAccountSummary.mockResolvedValue({
+      success: true,
+      data: {
+        marginSummary: { accountValue: '100', totalNtlPos: '0', totalMarginUsed: '0' },
+        withdrawable: '50',
+        assetPositions: [],
+      },
+    });
+  });
+
+  it('should set leverage non-interactively with --symbol and --leverage flags', async () => {
+    mockListSubAccounts.mockResolvedValue({
+      success: true, data: [WALLET_DEFAULT] as never,
+    });
+    mockGetAssetMeta.mockResolvedValue(ASSETS);
+    mockUpdateLeverage.mockResolvedValue({ success: true, data: undefined });
+
+    const cmd = await getCmd('leverage');
+    const output: string[] = [];
+    const logSpy = vi.spyOn(console, 'log').mockImplementation((...args) => {
+      output.push(args.join(' '));
+    });
+
+    await cmd.parseAsync(['-s', 'ETH', '-l', '2'], { from: 'user' });
+
+    expect(mockUpdateLeverage).toHaveBeenCalledWith('test-token', {
+      symbol: 'ETH',
+      isCross: true,
+      leverage: 2,
+      subAccountId: undefined,
+    });
+    expect(output.join('\n')).toContain('2x');
+    expect(output.join('\n')).toContain('ETH');
+
+    logSpy.mockRestore();
+  });
+
+  it('should set leverage on specific wallet with --wallet flag', async () => {
+    mockListSubAccounts.mockResolvedValue({
+      success: true, data: [WALLET_DEFAULT, WALLET_SUB1] as never,
+    });
+    mockGetAssetMeta.mockResolvedValue(ASSETS);
+    mockUpdateLeverage.mockResolvedValue({ success: true, data: undefined });
+
+    const cmd = await getCmd('leverage');
+    const output: string[] = [];
+    const logSpy = vi.spyOn(console, 'log').mockImplementation((...args) => {
+      output.push(args.join(' '));
+    });
+
+    await cmd.parseAsync(['-w', 'Bot-1', '-s', 'SOL', '-l', '3'], { from: 'user' });
+
+    // Note: wallet name lookup is case-insensitive
+    expect(mockUpdateLeverage).toHaveBeenCalledWith('test-token', {
+      symbol: 'SOL',
+      isCross: true,
+      leverage: 3,
+      subAccountId: 'w-sub1',
+    });
+    expect(output.join('\n')).toContain('3x');
+    expect(output.join('\n')).toContain('SOL');
+
+    logSpy.mockRestore();
+  });
+
+  it('should reject invalid symbol in non-interactive mode', async () => {
+    mockListSubAccounts.mockResolvedValue({
+      success: true, data: [WALLET_DEFAULT] as never,
+    });
+    vi.mocked(perpsApi.getAssetMeta).mockResolvedValue(ASSETS);
+
+    const cmd = await getCmd('leverage');
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {});
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    await cmd.parseAsync(['-s', 'INVALID', '-l', '2'], { from: 'user' });
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    expect(errSpy).toHaveBeenCalled();
+
+    exitSpy.mockRestore();
+    errSpy.mockRestore();
+  });
+
+  it('should reject leverage exceeding max for symbol', async () => {
+    mockListSubAccounts.mockResolvedValue({
+      success: true, data: [WALLET_DEFAULT] as never,
+    });
+    vi.mocked(perpsApi.getAssetMeta).mockResolvedValue(ASSETS);
+
+    const cmd = await getCmd('leverage');
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {});
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    // SOL has maxLeverage: 20, so 100x should be rejected
+    await cmd.parseAsync(['-s', 'SOL', '-l', '100'], { from: 'user' });
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    expect(errSpy).toHaveBeenCalled();
+
+    exitSpy.mockRestore();
+    errSpy.mockRestore();
+  });
+
+  it('should reject invalid leverage value', async () => {
+    mockListSubAccounts.mockResolvedValue({
+      success: true, data: [WALLET_DEFAULT] as never,
+    });
+    vi.mocked(perpsApi.getAssetMeta).mockResolvedValue(ASSETS);
+
+    const cmd = await getCmd('leverage');
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {});
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    await cmd.parseAsync(['-s', 'BTC', '-l', 'invalid'], { from: 'user' });
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+
+    exitSpy.mockRestore();
+    errSpy.mockRestore();
+  });
+
+  it('should reject leverage below 1', async () => {
+    mockListSubAccounts.mockResolvedValue({
+      success: true, data: [WALLET_DEFAULT] as never,
+    });
+    vi.mocked(perpsApi.getAssetMeta).mockResolvedValue(ASSETS);
+
+    const cmd = await getCmd('leverage');
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {});
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    await cmd.parseAsync(['-s', 'BTC', '-l', '0'], { from: 'user' });
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+
+    exitSpy.mockRestore();
+    errSpy.mockRestore();
+  });
+
+  it('should fall back to interactive mode when flags not provided', async () => {
+    mockListSubAccounts.mockResolvedValue({
+      success: true, data: [WALLET_DEFAULT] as never,
+    });
+    vi.mocked(perpsApi.getAssetMeta).mockResolvedValue(ASSETS);
+    mockSelect.mockResolvedValueOnce('BTC' as never);
+    mockNumber.mockResolvedValueOnce(10 as never);
+    mockSelect.mockResolvedValueOnce(true as never);
+    vi.mocked(perpsApi.updateLeverage).mockResolvedValue({ success: true, data: undefined });
+
+    const cmd = await getCmd('leverage');
+    const output: string[] = [];
+    const logSpy = vi.spyOn(console, 'log').mockImplementation((...args) => {
+      output.push(args.join(' '));
+    });
+
+    await cmd.parseAsync([], { from: 'user' });
+
+    expect(mockSelect).toHaveBeenCalled();
+    expect(mockNumber).toHaveBeenCalled();
+    expect(output.join('\n')).toContain('10x');
 
     logSpy.mockRestore();
   });

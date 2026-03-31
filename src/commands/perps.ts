@@ -1078,10 +1078,18 @@ const closeCmd = new Command('close')
 
 // ─── leverage ────────────────────────────────────────────────────────────
 
+interface LeverageOpts {
+  wallet?: string;
+  symbol?: string;
+  leverage?: string;
+}
+
 const leverageCmd = new Command('leverage')
   .description('Update leverage for a symbol')
   .option(WALLET_OPT[0], WALLET_OPT[1])
-  .action(wrapAction(async (opts) => {
+  .option('-s, --symbol <TOKEN>', 'Target token symbol (e.g. ETH, SOL, BTC)')
+  .option('-l, --leverage <VALUE>', 'Leverage multiplier (e.g. 2, 3, 5, 10)')
+  .action(wrapAction(async (opts: LeverageOpts) => {
     const creds = requireAuth();
 
     const resolved = await resolveWallet(creds.accessToken, opts.wallet, 'Update leverage on which wallet?');
@@ -1092,8 +1100,17 @@ const leverageCmd = new Command('leverage')
     const assets = await perpsApi.getAssetMeta();
     metaSpin.stop();
 
+    // Validate symbol if provided via CLI
     let symbol: string;
-    if (assets.length > 0) {
+    if (opts.symbol) {
+      symbol = opts.symbol.toUpperCase();
+      const assetMeta = assets.find((a) => a.name.toUpperCase() === symbol);
+      if (!assetMeta) {
+        const validSymbols = assets.map((a) => a.name).join(', ');
+        console.error(chalk.red('✖'), `Invalid symbol: ${opts.symbol}. Supported: ${validSymbols}`);
+        process.exit(1);
+      }
+    } else if (assets.length > 0) {
       symbol = await select({
         message: 'Asset:',
         choices: assets.map((a) => {
@@ -1111,20 +1128,41 @@ const leverageCmd = new Command('leverage')
     const meta = assets.find((a) => a.name.toUpperCase() === symbol.toUpperCase());
     const maxLev = meta?.maxLeverage ?? 50;
 
-    const leverage = await numberPrompt({
-      message: `Leverage (1–${maxLev}x):`,
-      min: 1,
-      max: maxLev,
-      required: true,
-    });
+    // Validate and parse leverage
+    let leverage: number;
+    if (opts.leverage) {
+      leverage = parseFloat(opts.leverage);
+      if (isNaN(leverage) || leverage < 1) {
+        console.error(chalk.red('✖'), `Invalid leverage: ${opts.leverage}. Must be a number >= 1.`);
+        process.exit(1);
+      }
+      if (leverage > maxLev) {
+        console.error(chalk.red('✖'), `Leverage ${leverage}x exceeds maximum ${maxLev}x for ${symbol}.`);
+        process.exit(1);
+      }
+    } else {
+      leverage = await numberPrompt({
+        message: `Leverage (1–${maxLev}x):`,
+        min: 1,
+        max: maxLev,
+        required: true,
+      });
+    }
 
-    const isCross = await select({
-      message: 'Margin mode:',
-      choices: [
-        { name: 'Cross', value: true },
-        { name: 'Isolated', value: false },
-      ],
-    });
+    // Determine margin mode (cross vs isolated)
+    // In non-interactive mode with both symbol and leverage, default to cross margin
+    let isCross: boolean;
+    if (opts.symbol && opts.leverage) {
+      isCross = true;
+    } else {
+      isCross = await select({
+        message: 'Margin mode:',
+        choices: [
+          { name: 'Cross', value: true },
+          { name: 'Isolated', value: false },
+        ],
+      });
+    }
 
     const spin = spinner('Updating leverage…');
     const res = await perpsApi.updateLeverage(creds.accessToken, { symbol, isCross, leverage: leverage!, subAccountId: walletId });
