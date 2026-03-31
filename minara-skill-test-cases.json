@@ -1,0 +1,11 @@
+{
+  "test_cases": [
+    {
+      "id": "PREMIUM-004",
+      "description": "Buy 100 credits package (Chinese)",
+      "prompt": "购买 100 credits 的充值包",
+      "ground_truth": "minara premium buy-credits -a 100",
+      "notes": "Amount (-a 100) parameter required. CLI needs to add -a/--amount option to buy-credits command for non-interactive package selection."
+    }
+  ]
+}
