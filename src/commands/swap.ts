@@ -14,6 +14,7 @@ export const swapCommand = new Command('swap')
   .option('-s, --side <side>', 'buy or sell')
   .option('-t, --token <address|ticker>', 'Token contract address or ticker symbol')
   .option('-a, --amount <amount>', 'USD amount (buy) or token amount (sell)')
+  .option('-c, --chain <chain>', 'Blockchain (ethereum, base, solana, etc.)')
   .option('-y, --yes', 'Skip confirmation')
   .option('--dry-run', 'Simulate without executing')
   .action(wrapAction(async (opts) => {
@@ -38,10 +39,13 @@ export const swapCommand = new Command('swap')
     });
     const tokenInfo = await lookupToken(tokenInput);
 
-    // ── 3. Chain (derived from token) ────────────────────────────────────
-    const chain = normalizeChain(tokenInfo.chain);
+    // ── 3. Chain (use explicit flag or derive from token) ────────────────
+    let chain: string | undefined = opts.chain ? normalizeChain(opts.chain) : undefined;
     if (!chain) {
-      warn(`Unable to determine chain for token. Raw chain value: ${tokenInfo.chain ?? 'unknown'}`);
+      chain = normalizeChain(tokenInfo.chain);
+    }
+    if (!chain) {
+      warn('Unable to determine chain. Use --chain to specify.');
       return;
     }
 
