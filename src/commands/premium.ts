@@ -7,7 +7,7 @@ import { requireAuth } from '../config.js';
 import { success, info, warn, spinner, assertApiOk, wrapAction } from '../utils.js';
 import { openBrowser } from '../utils.js';
 import { printKV, printTable, isRawJson } from '../formatters.js';
-import type { PaymentPlan, CreditPackage } from '../types.js';
+import type { PaymentPlan } from '../types.js';
 
 // ─── helpers ────────────────────────────────────────────────────────────
 
@@ -331,114 +331,6 @@ async function handleCryptoCheckout(token: string, planId: string): Promise<void
   }
 }
 
-// ─── buy-credits ────────────────────────────────────────────────────────
-
-const buyCreditsCmd = new Command('buy-credits')
-  .description('Buy a one-time credit package')
-  .option('-a, --amount <number>', 'Package price amount (e.g., 10, 20, 50)')
-  .option('-p, --pay <method>', 'Payment method: stripe or crypto')
-  .action(wrapAction(async (opts) => {
-    const creds = requireAuth();
-
-    const spin = spinner('Fetching packages…');
-    const plansRes = await paymentApi.getPlans();
-    spin.stop();
-    assertApiOk(plansRes, 'Failed to fetch packages');
-
-    const { packages } = plansRes.data!;
-    if (packages.length === 0) {
-      info('No credit packages available.');
-      return;
-    }
-
-    let selectedPkg: CreditPackage | undefined;
-
-    if (opts.amount) {
-      // Non-interactive: find package by amount
-      const amount = Number(opts.amount);
-      selectedPkg = packages.find((p) => p.amount === amount);
-      if (!selectedPkg) {
-        const available = packages.map((p) => `$${p.amount}`).join(', ');
-        warn(`No package found for $${amount}. Available: ${available}`);
-        return;
-      }
-    } else {
-      // Interactive: select package
-      const selectedPkgId = await select({
-        message: 'Select a credit package:',
-        choices: packages.map((pkg) => ({
-          name: `$${pkg.amount} — ${Number(pkg.credit).toLocaleString()} credits`,
-          value: pkg._id,
-        })),
-      });
-      selectedPkg = packages.find((p) => p._id === selectedPkgId)!;
-    }
-
-    let payMethod: 'stripe' | 'crypto';
-
-    if (opts.pay) {
-      // Non-interactive: use provided payment method
-      if (opts.pay !== 'stripe' && opts.pay !== 'crypto') {
-        warn(`Invalid payment method: ${opts.pay}. Use 'stripe' or 'crypto'.`);
-        return;
-      }
-      payMethod = opts.pay;
-    } else {
-      // Interactive: select payment method
-      payMethod = await select({
-        message: 'Payment method:',
-        choices: [
-          { name: 'Credit Card (Stripe)', value: 'stripe' as const },
-          { name: 'Crypto (USDC on-chain)', value: 'crypto' as const },
-        ],
-      });
-    }
-
-    console.log('');
-    console.log(chalk.bold('Package Summary:'));
-    console.log(`  Price      : ${chalk.bold('$' + selectedPkg.amount)}`);
-    console.log(`  Credits    : ${Number(selectedPkg.credit).toLocaleString()}`);
-    console.log(`  Payment    : ${payMethod === 'stripe' ? 'Credit Card (Stripe)' : 'Crypto (USDC)'}`);
-    console.log('');
-
-    const ok = await confirm({ message: 'Proceed to checkout?', default: true });
-    if (!ok) { console.log(chalk.dim('Cancelled.')); return; }
-
-    if (payMethod === 'stripe') {
-      const spin2 = spinner('Creating checkout session…');
-      const res = await paymentApi.checkoutPackage(
-        creds.accessToken, selectedPkgId,
-        'https://minara.ai/payment/success',
-        'https://minara.ai/payment/cancel',
-      );
-      spin2.stop();
-      assertApiOk(res, 'Failed to create checkout');
-      const url = res.data?.url ?? (res.data as Record<string, unknown>)?.checkoutUrl as string | undefined;
-      if (url) {
-        success('Opening browser for payment…');
-        console.log(chalk.cyan(`  ${url}`));
-        openBrowser(url);
-      } else {
-        success('Checkout created:');
-        printKV(res.data as Record<string, unknown>);
-      }
-    } else {
-      const spin2 = spinner('Creating crypto checkout…');
-      const res = await paymentApi.cryptoCheckoutPackage(creds.accessToken, selectedPkgId);
-      spin2.stop();
-      assertApiOk(res, 'Failed to create crypto checkout');
-      const url = res.data?.url ?? (res.data as Record<string, unknown>)?.checkoutUrl as string | undefined;
-      if (url) {
-        success('Opening browser for crypto payment…');
-        console.log(chalk.cyan(`  ${url}`));
-        openBrowser(url);
-      } else {
-        success('Crypto checkout:');
-        printKV(res.data as Record<string, unknown>);
-      }
-    }
-  }));
-
 // ─── cancel ─────────────────────────────────────────────────────────────
 
 const cancelCmd = new Command('cancel')
@@ -480,7 +372,6 @@ export const premiumCommand = new Command('premium')
   .addCommand(plansCmd)
   .addCommand(statusCmd)
   .addCommand(subscribeCmd)
-  .addCommand(buyCreditsCmd)
   .addCommand(cancelCmd)
   .action(wrapAction(async () => {
     const action = await select({
@@ -489,7 +380,6 @@ export const premiumCommand = new Command('premium')
         { name: 'View available plans', value: 'plans' },
         { name: 'View my subscription', value: 'status' },
         { name: 'Subscribe / Change plan', value: 'subscribe' },
-        { name: 'Buy credit package', value: 'buy-credits' },
         { name: 'Cancel subscription', value: 'cancel' },
       ],
     });
