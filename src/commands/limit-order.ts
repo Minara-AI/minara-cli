@@ -11,13 +11,46 @@ import { printTxResult, printTable, LIMIT_ORDER_COLUMNS } from '../formatters.js
 
 const createCmd = new Command('create')
   .description('Create a limit order')
-  .option('-y, --yes', 'Skip confirmation')
+  .option('-y, --yes', 'Skip transaction confirmation (Touch ID still required)')
+  .option('--chain <chain>', 'Blockchain (ethereum, base, solana, etc.)')
+  .option('--side <side>', 'buy or sell')
+  .option('--token <ticker|address>', 'Token symbol or contract address')
+  .option('--condition <condition>', 'Price condition (above or below)')
+  .option('--price <number>', 'Target price in USD')
+  .option('--amount <number>', 'Amount in USD')
+  .option('--expiry <hours>', 'Expiry time in hours')
   .action(wrapAction(async (opts) => {
     const creds = requireAuth();
 
-    const chain = await selectChain('Chain:', true);
+    // Validate all flags upfront before any interactive prompts
+    if (opts.side && !['buy', 'sell'].includes(opts.side)) {
+      throw new Error(`Invalid side: ${opts.side}. Must be "buy" or "sell".`);
+    }
+    if (opts.condition && !['above', 'below'].includes(opts.condition)) {
+      throw new Error(`Invalid condition: ${opts.condition}. Must be "above" or "below".`);
+    }
+    if (opts.price !== undefined) {
+      const price = parseFloat(opts.price);
+      if (isNaN(price) || price <= 0) {
+        throw new Error('Target price must be a positive number.');
+      }
+    }
+    if (opts.amount !== undefined) {
+      const amountVal = parseFloat(opts.amount);
+      if (isNaN(amountVal) || amountVal <= 0) {
+        throw new Error('Amount must be a positive number.');
+      }
+    }
+    if (opts.expiry !== undefined) {
+      const expiryVal = parseFloat(opts.expiry);
+      if (isNaN(expiryVal) || expiryVal <= 0) {
+        throw new Error('Expiry must be a positive number of hours.');
+      }
+    }
 
-    const side = await select({
+    const chain = opts.chain ?? await selectChain('Chain:', true);
+
+    const side = opts.side ?? await select({
       message: 'Side:',
       choices: [
         { name: 'Buy', value: 'buy' },
@@ -25,13 +58,13 @@ const createCmd = new Command('create')
       ],
     });
 
-    const tokenInput = await input({
+    const tokenInput = opts.token ?? await input({
       message: 'Target token (contract address or ticker):',
       validate: (v) => (v.length > 0 ? true : 'Required'),
     });
     const tokenInfo = await lookupToken(tokenInput);
 
-    const priceCondition = await select({
+    const priceCondition = opts.condition ?? await select({
       message: 'Trigger when price is:',
       choices: [
         { name: 'Above target price', value: 'above' },
@@ -39,14 +72,20 @@ const createCmd = new Command('create')
       ],
     });
 
-    const targetPrice = await numberPrompt({ message: 'Target price (USD):', required: true });
-    const amount = await input({
+    const targetPrice = opts.price ? parseFloat(opts.price) : await numberPrompt({ message: 'Target price (USD):', required: true });
+
+    const amountInput = opts.amount ?? await input({
       message: 'Amount (USD):',
       validate: (v) => (parseFloat(v) > 0 ? true : 'Enter positive number'),
     });
+    const amount = typeof amountInput === 'string' ? amountInput : String(amountInput);
 
-    const expireHours = await numberPrompt({ message: 'Expire after (hours):', default: 24 });
-    const expiredAt = Math.floor(Date.now() / 1000) + (expireHours ?? 24) * 3600;
+    const expireHoursRaw = opts.expiry ? parseFloat(opts.expiry) : await numberPrompt({ message: 'Expire after (hours):', default: 24 });
+    const expireHours = expireHoursRaw ?? 24;
+    if (isNaN(expireHours) || expireHours <= 0) {
+      throw new Error('Expiry must be a positive number of hours.');
+    }
+    const expiredAt = Math.floor(Date.now() / 1000) + expireHours * 3600;
 
     console.log('');
     console.log(chalk.bold('Limit Order:'));
@@ -60,11 +99,8 @@ const createCmd = new Command('create')
     console.log('');
 
     if (!opts.yes) {
-      const ok = await confirm({ message: 'Create this limit order?', default: false });
-      if (!ok) return;
+      await requireTransactionConfirmation(`Limit ${side} · $${amount} · price ${priceCondition} $${targetPrice} · ${chain}`, tokenInfo, { chain, side, amount: `$${amount}` });
     }
-
-    await requireTransactionConfirmation(`Limit ${side} · $${amount} · price ${priceCondition} $${targetPrice} · ${chain}`, tokenInfo, { chain, side, amount: `$${amount}` });
     await requireTouchId();
 
     const spin = spinner('Creating limit order…');
