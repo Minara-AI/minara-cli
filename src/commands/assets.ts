@@ -38,6 +38,9 @@ async function showSpotAssets(token: string): Promise<void> {
   let totalUnrealizedPnl = 0;
   let hasUnrealizedPnl = false;
 
+  const STABLECOINS = new Set(['USDC', 'USDT']);
+  let stablecoinBalance = 0;
+
   for (const t of all) {
     const bal = Number(t.balance ?? 0);
     const price = Number(t.marketPrice ?? 0);
@@ -51,6 +54,11 @@ async function showSpotAssets(token: string): Promise<void> {
     if (uPnl !== 0) {
       totalUnrealizedPnl += uPnl;
       hasUnrealizedPnl = true;
+    }
+
+    const sym = String(t.tokenSymbol ?? '').toUpperCase();
+    if (STABLECOINS.has(sym)) {
+      stablecoinBalance += bal;
     }
 
     if (bal > 0 && value >= MIN_DISPLAY_VALUE) {
@@ -67,6 +75,7 @@ async function showSpotAssets(token: string): Promise<void> {
 
   console.log('');
   console.log(chalk.bold('Spot Wallet:'));
+  console.log(`  Balance (USDC+USDT) : ${fmt(stablecoinBalance)}`);
   console.log(`  Portfolio Value : ${fmt(totalValue)}`);
   console.log(`  Unrealized PnL  : ${pnlFmt(totalUnrealizedPnl)}`);
   console.log(`  Realized PnL    : ${pnlFmt(totalRealizedPnl)}`);
