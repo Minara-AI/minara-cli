@@ -25,13 +25,11 @@ export const withdrawCommand = new Command('withdraw')
         throw new Error('Amount must be a positive number');
       }
     }
-    // If --to provided, we need chain for validation - get it early
-    let chain: Chain | undefined = opts.chain as Chain;
-    if (opts.to && !chain) {
-      chain = await selectChain('Withdraw on which blockchain?');
-    }
-    if (opts.to && chain) {
-      const addrValidation = validateAddress(opts.to, chain);
+    if (opts.to) {
+      if (!opts.chain) {
+        throw new Error('--chain is required when --to is provided');
+      }
+      const addrValidation = validateAddress(opts.to, opts.chain);
       if (addrValidation !== true) {
         throw new Error(addrValidation);
       }
@@ -65,9 +63,7 @@ export const withdrawCommand = new Command('withdraw')
     }
 
     // ── 2. Chain ─────────────────────────────────────────────────────────
-    if (!chain) {
-      chain = opts.chain as Chain ?? await selectChain('Withdraw on which blockchain?');
-    }
+    const chain = opts.chain as Chain ?? await selectChain('Withdraw on which blockchain?');
 
     // ── 3. Token ─────────────────────────────────────────────────────────
     const tokenInput: string = opts.token ?? await input({
