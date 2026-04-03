@@ -245,11 +245,11 @@ export async function lookupToken(tokenInput: string): Promise<TokenDisplayInfo>
     const res = await searchTokens(keyword);
     spin.stop();
 
-    if (!res.success || !res.data || res.data.length === 0) {
-      if (isTicker) {
-        warn(`No token found for ticker $${keyword}`);
-      }
-      return { address: tokenInput };
+    if (!res.success) {
+      throw new Error(res.error?.message ?? 'Failed to lookup token');
+    }
+    if (!res.data || res.data.length === 0) {
+      throw new Error(`Unknown token: ${tokenInput}`);
     }
 
     let tokens = res.data;
@@ -318,9 +318,9 @@ export async function lookupToken(tokenInput: string): Promise<TokenDisplayInfo>
       address: selected.address ?? resolveNativeAddress(selected.chain),
       chain: selected.chain,
     };
-  } catch {
+  } catch (err) {
     spin.stop();
-    return { address: tokenInput };
+    throw err;
   }
 }
 
