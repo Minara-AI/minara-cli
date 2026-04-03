@@ -6,8 +6,8 @@ import { get } from '../api/client.js';
 import { requireAuth } from '../config.js';
 import { success, info, warn, spinner, assertApiOk, wrapAction, requireTransactionConfirmation, lookupToken, normalizeChain } from '../utils.js';
 import { requireTouchId } from '../touchid.js';
-import { printTxResult, printKV } from '../formatters.js';
-import type { SwapSide, Chain } from '../types.js';
+import { printTxResult, printSwapSimulation } from '../formatters.js';
+import type { SwapSide, Chain, CrossChainSwapsSimulateItem } from '../types.js';
 
 export const swapCommand = new Command('swap')
   .description('Swap tokens (cross-chain spot trading)')
@@ -112,15 +112,10 @@ export const swapCommand = new Command('swap')
       }]);
       spin.stop();
       assertApiOk(simRes, 'Simulation failed');
-      console.log('');
-      console.log(chalk.bold('Simulation Result:'));
-      if (Array.isArray(simRes.data)) {
+      if (simRes.data && Array.isArray(simRes.data)) {
         for (const item of simRes.data) {
-          printKV(item as Record<string, unknown>);
-          console.log('');
+          printSwapSimulation(item);
         }
-      } else if (simRes.data) {
-        printKV(simRes.data as Record<string, unknown>);
       }
       return;
     }

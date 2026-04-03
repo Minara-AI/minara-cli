@@ -6,6 +6,7 @@ import type {
   CrossChainAccount,
   WalletAsset,
   TransactionResult,
+  CrossChainSwapsSimulateResponseDto,
 } from '../types.js';
 
 /** Get cross-chain account info */
@@ -33,7 +34,7 @@ export function swaps(token: string, swapList: CrossChainSwapDto[]) {
 
 /** Simulate swaps (dry-run) */
 export function swapsSimulate(token: string, swapList: CrossChainSwapDto[]) {
-  return post<TransactionResult[]>('/v1/tx/cross-chain/swaps-simulate', {
+  return post<CrossChainSwapsSimulateResponseDto>('/v1/tx/cross-chain/swaps-simulate', {
     token,
     body: { swaps: swapList },
   });

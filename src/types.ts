@@ -159,6 +159,64 @@ export interface TransactionResult {
   [key: string]: unknown;
 }
 
+// ─── Swap Simulation Types (from xneuro-core OpenAPI) ─────────────────────
+
+export interface TokenInfoDto {
+  name: string;
+  symbol: string;
+  address: string;
+  chainId: number;
+  decimals: number;
+  realDecimals: number;
+  price: number;
+  image?: string;
+  assetId?: string;
+  type?: string;
+  rank?: number | null;
+  slotIndex?: number | null;
+}
+
+export interface TokenChangeDto {
+  token: TokenInfoDto;
+  /** Amount of token changed (BigInt string, use token.realDecimals for conversion) */
+  amount: string;
+  /** Amount in USD (BigInt string in wei/10^18, may be null) */
+  amountInUSD: string | null;
+}
+
+export interface CrossChainSwapsSimulateResultDto {
+  /** Tokens that increased in balance */
+  increased: TokenChangeDto[];
+  /** Tokens that decreased in balance */
+  decreased: TokenChangeDto[];
+  /** Total fee in USD (BigInt string in wei/10^18) */
+  totalFeeInUsd: string;
+  /** Gas fee in USD (BigInt string in wei/10^18) */
+  gasFeeInUsd: string;
+  /** Service fee in USD (BigInt string in wei/10^18) */
+  serviceFeeInUsd: string;
+  /** LP fee in USD (BigInt string in wei/10^18) */
+  lpFeeInUsd: string;
+  /** Slippage in basis points */
+  slippageBps: number;
+  /** Price impact (may be null) */
+  priceImpact: string | null;
+}
+
+export interface CrossChainSwapsSimulateErrorDto {
+  error: string;
+  message?: string;
+}
+
+export type CrossChainSwapsSimulateItem =
+  | CrossChainSwapsSimulateResultDto
+  | CrossChainSwapsSimulateErrorDto;
+
+export interface CrossChainSwapsSimulateResponseDto {
+  success: boolean;
+  data: CrossChainSwapsSimulateItem[];
+}
+
 // ─── CrossChain (Spot Trading) ───────────────────────────────────────────
 
 export type SwapSide = 'buy' | 'sell';

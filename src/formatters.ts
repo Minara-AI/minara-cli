@@ -6,6 +6,38 @@
 
 import chalk from 'chalk';
 import Table from 'cli-table3';
+import type { CrossChainSwapsSimulateResultDto, CrossChainSwapsSimulateErrorDto } from './types.js';
+
+// ─── Wei / BigInt formatting ──────────────────────────────────────────────
+
+/** Convert wei (10^18) string to USD decimal string */
+export function formatWeiToUsd(weiStr: string): string {
+  try {
+    const wei = BigInt(weiStr);
+    // Divide by 10^18 (wei to ether conversion)
+    const dollars = Number(wei) / 1e18;
+    return dollars.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 });
+  } catch {
+    return weiStr; // fallback to original if parsing fails
+  }
+}
+
+/** Convert BigInt amount string using token decimals */
+export function formatTokenAmount(amountStr: string, decimals: number): string {
+  try {
+    const amount = BigInt(amountStr);
+    const value = Number(amount) / Math.pow(10, decimals);
+    return value.toLocaleString('en-US', { maximumFractionDigits: decimals });
+  } catch {
+    return amountStr; // fallback to original if parsing fails
+  }
+}
+
+/** Check if a string looks like a wei value (large BigInt string) */
+function isWeiString(value: string): boolean {
+  // Wei strings are typically large numbers (18+ digits)
+  return /^\d{15,}$/.test(value);
+}
 
 // ─── Raw JSON mode ───────────────────────────────────────────────────────
 
@@ -70,6 +102,12 @@ export function formatValue(value: unknown, key?: string): string {
   if (typeof value === 'string') {
     // Hex addresses — must check before numeric coercion (0x… is valid Number)
     if (/^0x[0-9a-fA-F]{20,}$/.test(value)) return chalk.yellow(value);
+
+    // Wei-format USD fee strings (key contains "FeeInUsd" and value is large BigInt string)
+    if (key && /FeeInUsd$/i.test(key) && isWeiString(value)) {
+      return `$${formatWeiToUsd(value)}`;
+    }
+
     // Numeric string that looks like a price / amount
     const num = Number(value);
     if (!isNaN(num) && value.trim() !== '') {
@@ -483,6 +521,100 @@ export function printCryptoMetrics(data: Record<string, unknown>): void {
   const maxLen = Math.max(...display.map(([l]) => l.length));
   for (const [label, val] of display) {
     console.log(`  ${chalk.dim(label.padEnd(maxLen))} : ${val}`);
+  }
+}
+
+// ─── Swap Simulation ─────────────────────────────────────────────────────
+
+/** Check if a simulation result is an error */
+export function isSimulateError(
+  item: CrossChainSwapsSimulateResultDto | CrossChainSwapsSimulateErrorDto,
+): item is CrossChainSwapsSimulateErrorDto {
+  return 'error' in item;
+}
+
+/** Pretty-print swap simulation result with wei-to-USD conversion */
+export function printSwapSimulation(
+  result: CrossChainSwapsSimulateResultDto | CrossChainSwapsSimulateErrorDto,
+): void {
+  if (_rawJson) {
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+
+  // Handle error case
+  if (isSimulateError(result)) {
+    console.log(chalk.red.bold(`  Error: ${result.error}`));
+    if (result.message) {
+      console.log(chalk.dim(`  Message: ${result.message}`));
+    }
+    return;
+  }
+
+  // Convert wei fees to USD (fees are always in 10^18 format)
+  const totalFeeUsd = formatWeiToUsd(result.totalFeeInUsd);
+  const gasFeeUsd = formatWeiToUsd(result.gasFeeInUsd);
+  const serviceFeeUsd = formatWeiToUsd(result.serviceFeeInUsd);
+  const lpFeeUsd = formatWeiToUsd(result.lpFeeInUsd);
+
+  // Sanity check: warn if total fee exceeds $1000
+  const totalFeeNum = parseFloat(totalFeeUsd.replace(/,/g, ''));
+  const feeWarning = totalFeeNum > 1000 ? chalk.yellow(' ⚠️ (unusually high)') : '';
+
+  // Print header
+  console.log('');
+  console.log(chalk.bold('  Simulation Result:'));
+
+  // Print token changes (using token.decimals for amount conversion)
+  if (result.increased.length > 0) {
+    console.log(chalk.green.bold('  Tokens Received:'));
+    for (const change of result.increased) {
+      const token = change.token;
+      const decimals = token.decimals ?? 18;
+      const amountFormatted = formatTokenAmount(change.amount, decimals);
+      const amountUsd = change.amountInUSD ? formatWeiToUsd(change.amountInUSD) : null;
+
+      console.log(`    ${chalk.bold(`$${token.symbol}`)} — ${token.name}`);
+      console.log(`      ${chalk.dim('Address')}  : ${chalk.yellow(token.address)}`);
+      console.log(`      ${chalk.dim('Amount')}   : ${amountFormatted}`);
+      if (amountUsd) console.log(`      ${chalk.dim('Value')}    : $${amountUsd}`);
+    }
+  }
+
+  if (result.decreased.length > 0) {
+    console.log(chalk.red.bold('  Tokens Spent:'));
+    for (const change of result.decreased) {
+      const token = change.token;
+      const decimals = token.decimals ?? 18;
+      const amountFormatted = formatTokenAmount(change.amount, decimals);
+      const amountUsd = change.amountInUSD ? formatWeiToUsd(change.amountInUSD) : null;
+
+      console.log(`    ${chalk.bold(`$${token.symbol}`)} — ${token.name}`);
+      console.log(`      ${chalk.dim('Address')}  : ${chalk.yellow(token.address)}`);
+      console.log(`      ${chalk.dim('Amount')}   : ${amountFormatted}`);
+      if (amountUsd) console.log(`      ${chalk.dim('Value')}    : $${amountUsd}`);
+    }
+  }
+
+  // Print fees
+  console.log('');
+  console.log(chalk.bold('  Fees:'));
+  console.log(`    ${chalk.dim('Total Fee')}      : $${totalFeeUsd}${feeWarning}`);
+  console.log(`    ${chalk.dim('Gas Fee')}       : $${gasFeeUsd}`);
+  console.log(`    ${chalk.dim('Service Fee')}   : $${serviceFeeUsd}`);
+  console.log(`    ${chalk.dim('LP Fee')}        : $${lpFeeUsd}`);
+
+  // Print other info
+  console.log('');
+  console.log(`    ${chalk.dim('Slippage')}      : ${result.slippageBps} bps`);
+  if (result.priceImpact !== null && result.priceImpact !== undefined) {
+    // -1 means price impact could not be calculated or is negligible
+    const impactStr = String(result.priceImpact).trim();
+    const impactNum = parseFloat(impactStr);
+    const impactDisplay = impactNum === -1 || impactStr === '-1'
+      ? chalk.dim('— (negligible)')
+      : `${impactStr}%`;
+    console.log(`    ${chalk.dim('Price Impact')}  : ${impactDisplay}`);
   }
 }
 
