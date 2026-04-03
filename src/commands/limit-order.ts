@@ -18,9 +18,35 @@ const createCmd = new Command('create')
   .option('--condition <condition>', 'Price condition (above or below)')
   .option('--price <number>', 'Target price in USD')
   .option('--amount <number>', 'Amount in USD')
-  .option('--expiry <hours>', 'Expiry time in hours', '24')
+  .option('--expiry <hours>', 'Expiry time in hours')
   .action(wrapAction(async (opts) => {
     const creds = requireAuth();
+
+    // Validate all flags upfront before any interactive prompts
+    if (opts.side && !['buy', 'sell'].includes(opts.side)) {
+      throw new Error(`Invalid side: ${opts.side}. Must be "buy" or "sell".`);
+    }
+    if (opts.condition && !['above', 'below'].includes(opts.condition)) {
+      throw new Error(`Invalid condition: ${opts.condition}. Must be "above" or "below".`);
+    }
+    if (opts.price !== undefined) {
+      const price = parseFloat(opts.price);
+      if (isNaN(price) || price <= 0) {
+        throw new Error('Target price must be a positive number.');
+      }
+    }
+    if (opts.amount !== undefined) {
+      const amountVal = parseFloat(opts.amount);
+      if (isNaN(amountVal) || amountVal <= 0) {
+        throw new Error('Amount must be a positive number.');
+      }
+    }
+    if (opts.expiry !== undefined) {
+      const expiryVal = parseFloat(opts.expiry);
+      if (isNaN(expiryVal) || expiryVal <= 0) {
+        throw new Error('Expiry must be a positive number of hours.');
+      }
+    }
 
     const chain = opts.chain ?? await selectChain('Chain:', true);
 
@@ -31,10 +57,6 @@ const createCmd = new Command('create')
         { name: 'Sell', value: 'sell' },
       ],
     });
-
-    if (opts.side && !['buy', 'sell'].includes(opts.side)) {
-      throw new Error(`Invalid side: ${opts.side}. Must be "buy" or "sell".`);
-    }
 
     const tokenInput = opts.token ?? await input({
       message: 'Target token (contract address or ticker):',
@@ -50,23 +72,13 @@ const createCmd = new Command('create')
       ],
     });
 
-    if (opts.condition && !['above', 'below'].includes(opts.condition)) {
-      throw new Error(`Invalid condition: ${opts.condition}. Must be "above" or "below".`);
-    }
-
     const targetPrice = opts.price ? parseFloat(opts.price) : await numberPrompt({ message: 'Target price (USD):', required: true });
-    if (isNaN(targetPrice) || targetPrice <= 0) {
-      throw new Error('Target price must be a positive number.');
-    }
 
     const amountInput = opts.amount ?? await input({
       message: 'Amount (USD):',
       validate: (v) => (parseFloat(v) > 0 ? true : 'Enter positive number'),
     });
     const amount = typeof amountInput === 'string' ? amountInput : String(amountInput);
-    if (parseFloat(amount) <= 0) {
-      throw new Error('Amount must be a positive number.');
-    }
 
     const expireHours = opts.expiry ? parseFloat(opts.expiry) : await numberPrompt({ message: 'Expire after (hours):', default: 24 });
     const expiredAt = Math.floor(Date.now() / 1000) + (expireHours ?? 24) * 3600;
