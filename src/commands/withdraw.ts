@@ -4,6 +4,7 @@ import chalk from 'chalk';
 import { transfer, getAssets } from '../api/crosschain.js';
 import { requireAuth } from '../config.js';
 import { success, spinner, assertApiOk, selectChain, wrapAction, requireTransactionConfirmation, lookupToken, validateAddress } from '../utils.js';
+import type { Chain } from '../types.js';
 import { requireTouchId } from '../touchid.js';
 import { printTxResult } from '../formatters.js';
 
@@ -24,40 +25,49 @@ export const withdrawCommand = new Command('withdraw')
         throw new Error('Amount must be a positive number');
       }
     }
-    if (opts.to && opts.chain) {
-      const addrValidation = validateAddress(opts.to, opts.chain);
+    // If --to provided, we need chain for validation - get it early
+    let chain: Chain | undefined = opts.chain as Chain;
+    if (opts.to && !chain) {
+      chain = await selectChain('Withdraw on which blockchain?');
+    }
+    if (opts.to && chain) {
+      const addrValidation = validateAddress(opts.to, chain);
       if (addrValidation !== true) {
         throw new Error(addrValidation);
       }
     }
 
-    // ── 1. Show current assets for reference ─────────────────────────────
-    const assetsSpin = spinner('Fetching your assets…');
-    const assetsRes = await getAssets(creds.accessToken);
-    assetsSpin.stop();
+    // ── 1. Show current assets for reference (only in interactive mode)
+    if (!opts.chain && !opts.token && !opts.amount && !opts.to) {
+      const assetsSpin = spinner('Fetching your assets…');
+      const assetsRes = await getAssets(creds.accessToken);
+      assetsSpin.stop();
 
-    if (assetsRes.success && assetsRes.data) {
-      const assets = assetsRes.data;
-      if (Array.isArray(assets) && assets.length > 0) {
-        console.log('');
-        console.log(chalk.dim('Your current assets:'));
-        for (const asset of assets.slice(0, 15)) {
-          const sym = asset.symbol ?? asset.tokenSymbol ?? '';
-          const bal = asset.balance ?? asset.amount ?? '';
-          const ch = asset.chain ?? asset.chainName ?? '';
-          if (sym || bal) {
-            console.log(chalk.dim(`  ${sym}  ${bal}  (${ch})`));
+      if (assetsRes.success && assetsRes.data) {
+        const assets = assetsRes.data;
+        if (Array.isArray(assets) && assets.length > 0) {
+          console.log('');
+          console.log(chalk.dim('Your current assets:'));
+          for (const asset of assets.slice(0, 15)) {
+            const sym = asset.symbol ?? asset.tokenSymbol ?? '';
+            const bal = asset.balance ?? asset.amount ?? '';
+            const ch = asset.chain ?? asset.chainName ?? '';
+            if (sym || bal) {
+              console.log(chalk.dim(`  ${sym}  ${bal}  (${ch})`));
+            }
           }
+          if (assets.length > 15) {
+            console.log(chalk.dim(`  … and ${assets.length - 15} more`));
+          }
+          console.log('');
         }
-        if (assets.length > 15) {
-          console.log(chalk.dim(`  … and ${assets.length - 15} more`));
-        }
-        console.log('');
       }
     }
 
     // ── 2. Chain ─────────────────────────────────────────────────────────
-    const chain = opts.chain ?? await selectChain('Withdraw on which blockchain?');
+    if (!chain) {
+      chain = opts.chain as Chain ?? await selectChain('Withdraw on which blockchain?');
+    }
 
     // ── 3. Token ─────────────────────────────────────────────────────────
     const tokenInput: string = opts.token ?? await input({
@@ -80,14 +90,6 @@ export const withdrawCommand = new Command('withdraw')
       message: 'Destination address (your external wallet):',
       validate: (v) => validateAddress(v, chain),
     });
-
-    // Validate address if provided via CLI without chain (chain was just selected)
-    if (opts.to && !opts.chain) {
-      const addrValidation = validateAddress(recipient, chain);
-      if (addrValidation !== true) {
-        throw new Error(addrValidation);
-      }
-    }
 
     // ── 6. Confirm & Touch ID ──────────────────────────────────────────
     if (!opts.yes) {

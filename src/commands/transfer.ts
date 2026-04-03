@@ -4,6 +4,7 @@ import chalk from 'chalk';
 import { transfer } from '../api/crosschain.js';
 import { requireAuth } from '../config.js';
 import { success, spinner, assertApiOk, selectChain, wrapAction, requireTransactionConfirmation, lookupToken, validateAddress } from '../utils.js';
+import type { Chain } from '../types.js';
 import { requireTouchId } from '../touchid.js';
 import { printTxResult } from '../formatters.js';
 
@@ -25,15 +26,22 @@ export const transferCommand = new Command('transfer')
         throw new Error('Amount must be a positive number');
       }
     }
-    if (opts.to && opts.chain) {
-      const addrValidation = validateAddress(opts.to, opts.chain);
+    // If --to provided, we need chain for validation - get it early
+    let chain: Chain | undefined = opts.chain as Chain;
+    if (opts.to && !chain) {
+      chain = await selectChain();
+    }
+    if (opts.to && chain) {
+      const addrValidation = validateAddress(opts.to, chain);
       if (addrValidation !== true) {
         throw new Error(addrValidation);
       }
     }
 
     // ── 1. Chain ─────────────────────────────────────────────────────────
-    const chain = opts.chain ?? await selectChain();
+    if (!chain) {
+      chain = opts.chain as Chain ?? await selectChain();
+    }
 
     // ── 2. Token ─────────────────────────────────────────────────────────
     const tokenInput: string = opts.token ?? await input({
@@ -56,14 +64,6 @@ export const transferCommand = new Command('transfer')
       message: 'Recipient address:',
       validate: (v) => validateAddress(v, chain),
     });
-
-    // Validate address if provided via CLI without chain (chain was just selected)
-    if (opts.to && !opts.chain) {
-      const addrValidation = validateAddress(recipient, chain);
-      if (addrValidation !== true) {
-        throw new Error(addrValidation);
-      }
-    }
 
     // ── 5. Confirm & Touch ID ──────────────────────────────────────────
     if (!opts.yes) {
