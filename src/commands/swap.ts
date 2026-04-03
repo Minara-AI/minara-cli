@@ -73,6 +73,19 @@ export const swapCommand = new Command('swap')
       },
     });
 
+    // Validate amount if provided via CLI
+    if (opts.amount) {
+      if (side === 'sell' && amount.toLowerCase() === 'all') {
+        // "all" is valid for sell
+      } else {
+        const amountNum = parseFloat(amount);
+        if (isNaN(amountNum) || amountNum <= 0) {
+          warn('Amount must be a positive number');
+          process.exit(1);
+        }
+      }
+    }
+
     if (side === 'sell') {
       if (amount.toLowerCase() === 'all') {
         if (!maxBalance || maxBalance <= 0) {

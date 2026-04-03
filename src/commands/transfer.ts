@@ -3,7 +3,7 @@ import { input } from '@inquirer/prompts';
 import chalk from 'chalk';
 import { transfer } from '../api/crosschain.js';
 import { requireAuth } from '../config.js';
-import { success, spinner, assertApiOk, selectChain, wrapAction, requireTransactionConfirmation, lookupToken, validateAddress } from '../utils.js';
+import { success, warn, spinner, assertApiOk, selectChain, wrapAction, requireTransactionConfirmation, lookupToken, validateAddress } from '../utils.js';
 import { requireTouchId } from '../touchid.js';
 import { printTxResult } from '../formatters.js';
 
@@ -37,11 +37,29 @@ export const transferCommand = new Command('transfer')
       },
     });
 
+    // Validate amount if provided via CLI
+    if (opts.amount) {
+      const amountNum = parseFloat(amount);
+      if (isNaN(amountNum) || amountNum <= 0) {
+        warn('Amount must be a positive number');
+        process.exit(1);
+      }
+    }
+
     // ── 4. Recipient ─────────────────────────────────────────────────────
     const recipient: string = opts.to ?? await input({
       message: 'Recipient address:',
       validate: (v) => validateAddress(v, chain),
     });
+
+    // Validate address if provided via CLI
+    if (opts.to) {
+      const addrValidation = validateAddress(recipient, chain);
+      if (addrValidation !== true) {
+        warn(addrValidation);
+        process.exit(1);
+      }
+    }
 
     // ── 5. Confirm & Touch ID ──────────────────────────────────────────
     if (!opts.yes) {
