@@ -17,6 +17,20 @@ export const withdrawCommand = new Command('withdraw')
   .action(wrapAction(async (opts) => {
     const creds = requireAuth();
 
+    // ── 0. Validate CLI options early ────────────────────────────────────
+    if (opts.amount) {
+      const amountNum = parseFloat(opts.amount);
+      if (isNaN(amountNum) || amountNum <= 0) {
+        throw new Error('Amount must be a positive number');
+      }
+    }
+    if (opts.to && opts.chain) {
+      const addrValidation = validateAddress(opts.to, opts.chain);
+      if (addrValidation !== true) {
+        throw new Error(addrValidation);
+      }
+    }
+
     // ── 1. Show current assets for reference ─────────────────────────────
     const assetsSpin = spinner('Fetching your assets…');
     const assetsRes = await getAssets(creds.accessToken);
@@ -61,22 +75,14 @@ export const withdrawCommand = new Command('withdraw')
       },
     });
 
-    // Validate amount if provided via CLI
-    if (opts.amount) {
-      const amountNum = parseFloat(amount);
-      if (isNaN(amountNum) || amountNum <= 0) {
-        throw new Error('Amount must be a positive number');
-      }
-    }
-
     // ── 5. Destination ───────────────────────────────────────────────────
     const recipient: string = opts.to ?? await input({
       message: 'Destination address (your external wallet):',
       validate: (v) => validateAddress(v, chain),
     });
 
-    // Validate address if provided via CLI
-    if (opts.to) {
+    // Validate address if provided via CLI without chain (chain was just selected)
+    if (opts.to && !opts.chain) {
       const addrValidation = validateAddress(recipient, chain);
       if (addrValidation !== true) {
         throw new Error(addrValidation);

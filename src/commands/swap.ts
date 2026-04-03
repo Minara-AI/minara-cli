@@ -19,6 +19,14 @@ export const swapCommand = new Command('swap')
   .action(wrapAction(async (opts) => {
     const creds = requireAuth();
 
+    // ── 0. Validate CLI options early ────────────────────────────────────
+    if (opts.amount) {
+      const amountNum = parseFloat(opts.amount);
+      if (opts.amount.toLowerCase() !== 'all' && (isNaN(amountNum) || amountNum <= 0)) {
+        throw new Error('Amount must be a positive number');
+      }
+    }
+
     // ── 1. Side ──────────────────────────────────────────────────────────
     let side: SwapSide = opts.side;
     if (!side) {
@@ -72,18 +80,6 @@ export const swapCommand = new Command('swap')
         return (isNaN(n) || n <= 0) ? 'Enter a valid positive number' : true;
       },
     });
-
-    // Validate amount if provided via CLI
-    if (opts.amount) {
-      if (side === 'sell' && amount.toLowerCase() === 'all') {
-        // "all" is valid for sell
-      } else {
-        const amountNum = parseFloat(amount);
-        if (isNaN(amountNum) || amountNum <= 0) {
-          throw new Error('Amount must be a positive number');
-        }
-      }
-    }
 
     if (side === 'sell') {
       if (amount.toLowerCase() === 'all') {

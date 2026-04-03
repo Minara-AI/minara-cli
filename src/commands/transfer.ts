@@ -18,6 +18,20 @@ export const transferCommand = new Command('transfer')
   .action(wrapAction(async (opts) => {
     const creds = requireAuth();
 
+    // ── 0. Validate CLI options early ────────────────────────────────────
+    if (opts.amount) {
+      const amountNum = parseFloat(opts.amount);
+      if (isNaN(amountNum) || amountNum <= 0) {
+        throw new Error('Amount must be a positive number');
+      }
+    }
+    if (opts.to && opts.chain) {
+      const addrValidation = validateAddress(opts.to, opts.chain);
+      if (addrValidation !== true) {
+        throw new Error(addrValidation);
+      }
+    }
+
     // ── 1. Chain ─────────────────────────────────────────────────────────
     const chain = opts.chain ?? await selectChain();
 
@@ -37,22 +51,14 @@ export const transferCommand = new Command('transfer')
       },
     });
 
-    // Validate amount if provided via CLI
-    if (opts.amount) {
-      const amountNum = parseFloat(amount);
-      if (isNaN(amountNum) || amountNum <= 0) {
-        throw new Error('Amount must be a positive number');
-      }
-    }
-
     // ── 4. Recipient ─────────────────────────────────────────────────────
     const recipient: string = opts.to ?? await input({
       message: 'Recipient address:',
       validate: (v) => validateAddress(v, chain),
     });
 
-    // Validate address if provided via CLI
-    if (opts.to) {
+    // Validate address if provided via CLI without chain (chain was just selected)
+    if (opts.to && !opts.chain) {
       const addrValidation = validateAddress(recipient, chain);
       if (addrValidation !== true) {
         throw new Error(addrValidation);
