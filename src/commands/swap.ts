@@ -7,7 +7,7 @@ import { requireAuth } from '../config.js';
 import { success, info, warn, spinner, assertApiOk, wrapAction, requireTransactionConfirmation, lookupToken, normalizeChain } from '../utils.js';
 import { requireTouchId } from '../touchid.js';
 import { printTxResult, printKV } from '../formatters.js';
-import type { SwapSide } from '../types.js';
+import type { SwapSide, Chain } from '../types.js';
 
 export const swapCommand = new Command('swap')
   .description('Swap tokens (cross-chain spot trading)')
@@ -40,7 +40,11 @@ export const swapCommand = new Command('swap')
     const tokenInfo = await lookupToken(tokenInput);
 
     // ── 3. Chain (use explicit flag or derive from token) ────────────────
-    let chain: string | undefined = opts.chain ? normalizeChain(opts.chain) : undefined;
+    let chain: Chain | undefined = opts.chain ? normalizeChain(opts.chain) : undefined;
+    if (opts.chain && !chain) {
+      warn(`Unsupported chain: ${opts.chain}`);
+      return;
+    }
     if (!chain) {
       chain = normalizeChain(tokenInfo.chain);
     }
