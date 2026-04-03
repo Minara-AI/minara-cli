@@ -80,8 +80,7 @@ export const swapCommand = new Command('swap')
       } else {
         const amountNum = parseFloat(amount);
         if (isNaN(amountNum) || amountNum <= 0) {
-          warn('Amount must be a positive number');
-          process.exit(1);
+          throw new Error('Amount must be a positive number');
         }
       }
     }
