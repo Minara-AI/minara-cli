@@ -255,10 +255,9 @@ describe('utils', () => {
       mockSearchTokens.mockReset();
     });
 
-    it('should return address only when no results', async () => {
+    it('should throw error when no results', async () => {
       mockSearchTokens.mockResolvedValue({ success: true, data: [] });
-      const result = await lookupToken('0xunknown');
-      expect(result).toEqual({ address: '0xunknown' });
+      await expect(lookupToken('0xunknown')).rejects.toThrow('Unknown token: 0xunknown');
     });
 
     it('should return token info for single exact match', async () => {
@@ -275,10 +274,9 @@ describe('utils', () => {
       });
     });
 
-    it('should return address as-is when API fails', async () => {
+    it('should throw error when API fails', async () => {
       mockSearchTokens.mockRejectedValue(new Error('Network error'));
-      const result = await lookupToken('$BONK');
-      expect(result).toEqual({ address: '$BONK' });
+      await expect(lookupToken('$BONK')).rejects.toThrow('Network error');
     });
   });
 
