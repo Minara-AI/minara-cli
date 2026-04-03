@@ -7,13 +7,14 @@ import { requireAuth } from '../config.js';
 import { success, info, warn, spinner, assertApiOk, wrapAction, requireTransactionConfirmation, lookupToken, normalizeChain } from '../utils.js';
 import { requireTouchId } from '../touchid.js';
 import { printTxResult, printKV } from '../formatters.js';
-import type { SwapSide } from '../types.js';
+import type { SwapSide, Chain } from '../types.js';
 
 export const swapCommand = new Command('swap')
   .description('Swap tokens (cross-chain spot trading)')
   .option('-s, --side <side>', 'buy or sell')
   .option('-t, --token <address|ticker>', 'Token contract address or ticker symbol')
   .option('-a, --amount <amount>', 'USD amount (buy) or token amount (sell)')
+  .option('-c, --chain <chain>', 'Blockchain (ethereum, base, solana, etc.)')
   .option('-y, --yes', 'Skip confirmation')
   .option('--dry-run', 'Simulate without executing')
   .action(wrapAction(async (opts) => {
@@ -38,10 +39,17 @@ export const swapCommand = new Command('swap')
     });
     const tokenInfo = await lookupToken(tokenInput);
 
-    // ── 3. Chain (derived from token) ────────────────────────────────────
-    const chain = normalizeChain(tokenInfo.chain);
+    // ── 3. Chain (use explicit flag or derive from token) ────────────────
+    let chain: Chain | undefined = opts.chain ? normalizeChain(opts.chain) : undefined;
+    if (opts.chain && !chain) {
+      warn(`Unsupported chain: ${opts.chain}`);
+      return;
+    }
     if (!chain) {
-      warn(`Unable to determine chain for token. Raw chain value: ${tokenInfo.chain ?? 'unknown'}`);
+      chain = normalizeChain(tokenInfo.chain);
+    }
+    if (!chain) {
+      warn('Unable to determine chain. Use --chain to specify.');
       return;
     }
 
