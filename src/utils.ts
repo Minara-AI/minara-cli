@@ -246,10 +246,7 @@ export async function lookupToken(tokenInput: string): Promise<TokenDisplayInfo>
     spin.stop();
 
     if (!res.success || !res.data || res.data.length === 0) {
-      if (isTicker) {
-        warn(`No token found for ticker $${keyword}`);
-      }
-      return { address: tokenInput };
+      throw new Error(`Unknown token: ${tokenInput}`);
     }
 
     let tokens = res.data;
@@ -318,9 +315,13 @@ export async function lookupToken(tokenInput: string): Promise<TokenDisplayInfo>
       address: selected.address ?? resolveNativeAddress(selected.chain),
       chain: selected.chain,
     };
-  } catch {
+  } catch (err) {
     spin.stop();
-    return { address: tokenInput };
+    // Re-throw Unknown token errors
+    if (err instanceof Error && err.message.startsWith('Unknown token:')) {
+      throw err;
+    }
+    throw new Error(`Unknown token: ${tokenInput}`);
   }
 }
 
