@@ -245,7 +245,10 @@ export async function lookupToken(tokenInput: string): Promise<TokenDisplayInfo>
     const res = await searchTokens(keyword);
     spin.stop();
 
-    if (!res.success || !res.data || res.data.length === 0) {
+    if (!res.success) {
+      throw new Error(res.error?.message ?? 'Failed to lookup token');
+    }
+    if (!res.data || res.data.length === 0) {
       throw new Error(`Unknown token: ${tokenInput}`);
     }
 
@@ -317,11 +320,7 @@ export async function lookupToken(tokenInput: string): Promise<TokenDisplayInfo>
     };
   } catch (err) {
     spin.stop();
-    // Re-throw Unknown token errors
-    if (err instanceof Error && err.message.startsWith('Unknown token:')) {
-      throw err;
-    }
-    throw new Error(`Unknown token: ${tokenInput}`);
+    throw err;
   }
 }
 
