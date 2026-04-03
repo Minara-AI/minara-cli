@@ -20,6 +20,14 @@ export const swapCommand = new Command('swap')
   .action(wrapAction(async (opts) => {
     const creds = requireAuth();
 
+    // ── 0. Validate CLI options early ────────────────────────────────────
+    if (opts.amount) {
+      const amountNum = parseFloat(opts.amount);
+      if (opts.amount.toLowerCase() !== 'all' && (isNaN(amountNum) || amountNum <= 0)) {
+        throw new Error('Amount must be a positive number');
+      }
+    }
+
     // ── 1. Side ──────────────────────────────────────────────────────────
     let side: SwapSide = opts.side;
     if (!side) {

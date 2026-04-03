@@ -120,7 +120,7 @@ describe('transfer / send command', () => {
       '-c', 'base',
       '-t', '$USDC',
       '-a', '200',
-      '--to', '0xFriend',
+      '--to', '0x1234567890123456789012345678901234567890',
       '-y',
     ], { from: 'user' });
 
@@ -129,7 +129,7 @@ describe('transfer / send command', () => {
       chain: 'base',
       tokenAddress: '0xUSDC',
       tokenAmount: '200',
-      recipient: '0xFriend',
+      recipient: '0x1234567890123456789012345678901234567890',
     });
     logSpy.mockRestore();
   });

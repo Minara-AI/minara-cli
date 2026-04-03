@@ -4,6 +4,7 @@ import chalk from 'chalk';
 import { transfer, getAssets } from '../api/crosschain.js';
 import { requireAuth } from '../config.js';
 import { success, spinner, assertApiOk, selectChain, wrapAction, requireTransactionConfirmation, lookupToken, validateAddress } from '../utils.js';
+import type { Chain } from '../types.js';
 import { requireTouchId } from '../touchid.js';
 import { printTxResult } from '../formatters.js';
 
@@ -17,33 +18,52 @@ export const withdrawCommand = new Command('withdraw')
   .action(wrapAction(async (opts) => {
     const creds = requireAuth();
 
-    // ── 1. Show current assets for reference ─────────────────────────────
-    const assetsSpin = spinner('Fetching your assets…');
-    const assetsRes = await getAssets(creds.accessToken);
-    assetsSpin.stop();
+    // ── 0. Validate CLI options early ────────────────────────────────────
+    if (opts.amount) {
+      const amountNum = parseFloat(opts.amount);
+      if (isNaN(amountNum) || amountNum <= 0) {
+        throw new Error('Amount must be a positive number');
+      }
+    }
+    if (opts.to) {
+      if (!opts.chain) {
+        throw new Error('--chain is required when --to is provided');
+      }
+      const addrValidation = validateAddress(opts.to, opts.chain);
+      if (addrValidation !== true) {
+        throw new Error(addrValidation);
+      }
+    }
 
-    if (assetsRes.success && assetsRes.data) {
-      const assets = assetsRes.data;
-      if (Array.isArray(assets) && assets.length > 0) {
-        console.log('');
-        console.log(chalk.dim('Your current assets:'));
-        for (const asset of assets.slice(0, 15)) {
-          const sym = asset.symbol ?? asset.tokenSymbol ?? '';
-          const bal = asset.balance ?? asset.amount ?? '';
-          const ch = asset.chain ?? asset.chainName ?? '';
-          if (sym || bal) {
-            console.log(chalk.dim(`  ${sym}  ${bal}  (${ch})`));
+    // ── 1. Show current assets for reference (only in interactive mode)
+    if (!opts.chain && !opts.token && !opts.amount && !opts.to) {
+      const assetsSpin = spinner('Fetching your assets…');
+      const assetsRes = await getAssets(creds.accessToken);
+      assetsSpin.stop();
+
+      if (assetsRes.success && assetsRes.data) {
+        const assets = assetsRes.data;
+        if (Array.isArray(assets) && assets.length > 0) {
+          console.log('');
+          console.log(chalk.dim('Your current assets:'));
+          for (const asset of assets.slice(0, 15)) {
+            const sym = asset.symbol ?? asset.tokenSymbol ?? '';
+            const bal = asset.balance ?? asset.amount ?? '';
+            const ch = asset.chain ?? asset.chainName ?? '';
+            if (sym || bal) {
+              console.log(chalk.dim(`  ${sym}  ${bal}  (${ch})`));
+            }
           }
+          if (assets.length > 15) {
+            console.log(chalk.dim(`  … and ${assets.length - 15} more`));
+          }
+          console.log('');
         }
-        if (assets.length > 15) {
-          console.log(chalk.dim(`  … and ${assets.length - 15} more`));
-        }
-        console.log('');
       }
     }
 
     // ── 2. Chain ─────────────────────────────────────────────────────────
-    const chain = opts.chain ?? await selectChain('Withdraw on which blockchain?');
+    const chain = opts.chain as Chain ?? await selectChain('Withdraw on which blockchain?');
 
     // ── 3. Token ─────────────────────────────────────────────────────────
     const tokenInput: string = opts.token ?? await input({

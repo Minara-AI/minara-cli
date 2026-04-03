@@ -170,7 +170,7 @@ describe('withdraw command', () => {
       '-c', 'ethereum',
       '-t', '0xUSDC',
       '-a', '50',
-      '--to', '0xMyWallet',
+      '--to', '0x1234567890123456789012345678901234567890',
       '-y',
     ], { from: 'user' });
 
@@ -181,7 +181,7 @@ describe('withdraw command', () => {
       chain: 'ethereum',
       tokenAddress: '0xUSDC',
       tokenAmount: '50',
-      recipient: '0xMyWallet',
+      recipient: '0x1234567890123456789012345678901234567890',
     });
 
     logSpy.mockRestore();

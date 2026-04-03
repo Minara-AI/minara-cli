@@ -4,6 +4,7 @@ import chalk from 'chalk';
 import { transfer } from '../api/crosschain.js';
 import { requireAuth } from '../config.js';
 import { success, spinner, assertApiOk, selectChain, wrapAction, requireTransactionConfirmation, lookupToken, validateAddress } from '../utils.js';
+import type { Chain } from '../types.js';
 import { requireTouchId } from '../touchid.js';
 import { printTxResult } from '../formatters.js';
 
@@ -18,8 +19,25 @@ export const transferCommand = new Command('transfer')
   .action(wrapAction(async (opts) => {
     const creds = requireAuth();
 
+    // ── 0. Validate CLI options early ────────────────────────────────────
+    if (opts.amount) {
+      const amountNum = parseFloat(opts.amount);
+      if (isNaN(amountNum) || amountNum <= 0) {
+        throw new Error('Amount must be a positive number');
+      }
+    }
+    if (opts.to) {
+      if (!opts.chain) {
+        throw new Error('--chain is required when --to is provided');
+      }
+      const addrValidation = validateAddress(opts.to, opts.chain);
+      if (addrValidation !== true) {
+        throw new Error(addrValidation);
+      }
+    }
+
     // ── 1. Chain ─────────────────────────────────────────────────────────
-    const chain = opts.chain ?? await selectChain();
+    const chain = opts.chain as Chain ?? await selectChain();
 
     // ── 2. Token ─────────────────────────────────────────────────────────
     const tokenInput: string = opts.token ?? await input({
