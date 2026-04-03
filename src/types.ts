@@ -178,7 +178,7 @@ export interface TokenInfoDto {
 
 export interface TokenChangeDto {
   token: TokenInfoDto;
-  /** Amount of token changed (BigInt string, use token.realDecimals for conversion) */
+  /** Amount of token changed (BigInt string, use token.decimals for conversion) */
   amount: string;
   /** Amount in USD (BigInt string in wei/10^18, may be null) */
   amountInUSD: string | null;
