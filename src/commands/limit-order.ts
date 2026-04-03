@@ -11,7 +11,7 @@ import { printTxResult, printTable, LIMIT_ORDER_COLUMNS } from '../formatters.js
 
 const createCmd = new Command('create')
   .description('Create a limit order')
-  .option('-y, --yes', 'Skip confirmation')
+  .option('-y, --yes', 'Skip transaction confirmation (Touch ID still required)')
   .option('--chain <chain>', 'Blockchain (ethereum, base, solana, etc.)')
   .option('--side <side>', 'buy or sell')
   .option('--token <ticker|address>', 'Token symbol or contract address')
