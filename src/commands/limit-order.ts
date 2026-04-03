@@ -80,8 +80,12 @@ const createCmd = new Command('create')
     });
     const amount = typeof amountInput === 'string' ? amountInput : String(amountInput);
 
-    const expireHours = opts.expiry ? parseFloat(opts.expiry) : await numberPrompt({ message: 'Expire after (hours):', default: 24 });
-    const expiredAt = Math.floor(Date.now() / 1000) + (expireHours ?? 24) * 3600;
+    const expireHoursRaw = opts.expiry ? parseFloat(opts.expiry) : await numberPrompt({ message: 'Expire after (hours):', default: 24 });
+    const expireHours = expireHoursRaw ?? 24;
+    if (isNaN(expireHours) || expireHours <= 0) {
+      throw new Error('Expiry must be a positive number of hours.');
+    }
+    const expiredAt = Math.floor(Date.now() / 1000) + expireHours * 3600;
 
     console.log('');
     console.log(chalk.bold('Limit Order:'));
