@@ -185,6 +185,13 @@ async function chatAction(messageArg?: string, opts?: ChatOpts): Promise<void> {
     console.log('');
 
     const rl = createInterface({ input: process.stdin, output: process.stdout });
+    let exiting = false;
+
+    const handleSigint = () => {
+      if (exiting) return;
+      exiting = true;
+      rl.close();
+    };
 
     async function sendAndPrintWithPause(msg: string) {
       rl.pause();
@@ -199,7 +206,10 @@ async function chatAction(messageArg?: string, opts?: ChatOpts): Promise<void> {
     const ask = (): Promise<string> =>
       new Promise((resolve) => rl.question(chalk.blue.bold('>>> '), resolve));
 
+    rl.on('SIGINT', handleSigint);
+    process.on('SIGINT', handleSigint);
     rl.on('close', () => {
+      process.off('SIGINT', handleSigint);
       console.log(chalk.dim('\nGoodbye!'));
       process.exit(0);
     });
