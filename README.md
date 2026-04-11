@@ -1,31 +1,20 @@
 <p align="center">
   <h1 align="center">Minara CLI</h1>
   <p align="center">
-    Your AI-powered digital finance assistant — from the terminal.
-    <br />
-    Trade, swap, chat, and manage your portfolio without leaving the command line.
+    AI-powered crypto trading from the terminal.
   </p>
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/minara"><img alt="npm version" src="https://img.shields.io/npm/v/minara?color=cb3837&label=npm"></a>
-  <a href="https://github.com/user/minara-cli/blob/main/LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
+  <a href="https://www.npmjs.com/package/minara"><img alt="npm" src="https://img.shields.io/npm/v/minara?color=cb3837"></a>
   <img alt="Node.js" src="https://img.shields.io/badge/node-%3E%3D18-brightgreen">
   <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-strict-3178c6">
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-blue"></a>
 </p>
 
 ---
 
-## Features
-
-- **AI Chat** — Crypto-native AI for on-chain analysis, market research, and DeFi due diligence. Interactive REPL & single-shot queries with `fast` / `quality` / `thinking` modes
-- **Wallet & Balance** — Unified balance view, spot holdings with PnL, perps account overview, deposits, withdrawals, and credit card on-ramp via MoonPay
-- **Chain-Abstracted Trading** — Cross-chain swaps with automatic chain detection, perpetual futures, and limit orders. Accepts `$TICKER`, token name, or contract address
-- **Multi-Wallet Perps** — Manage multiple sub-wallets per account: create, rename, sweep, transfer USDC between wallets. All trading commands support `--wallet` targeting
-- **AI Autopilot & Analysis** — Multi-strategy AI trading per wallet with performance dashboard, strategy comparison table, and one-click config management. Plus on-demand long/short analysis with quick order
-- **Market Discovery** — Trending tokens & stocks, Fear & Greed Index, on-chain metrics, and search
-
-## Installation
+## Install
 
 ```bash
 npm install -g minara
@@ -37,323 +26,168 @@ Or run without installing:
 npx minara --help
 ```
 
-**Requires Node.js >= 18**
-
 ## Quick Start
 
 ```bash
-# Login (interactive — device code or email)
-minara login
-
-# Check your account
-minara account
-
-# Receive / deposit
-minara receive
-
-# Quick AI question
-minara ask "What's the best DeFi yield right now?"
-
-# Deep AI research
-minara research "Analyze ETH outlook for next quarter"
-
-# Swap tokens (chain auto-detected from token)
-minara swap -t '$BONK' -s buy -a 100
-
-# View trending tokens
-minara discover trending
+minara login                    # Device code (default) or email
+minara account                  # View account & wallet addresses
+minara ask "What's BTC price?"  # Quick AI chat (fast mode)
+minara swap -s buy -t '$BONK' -a 100  # Swap tokens
 ```
 
 ## Commands
 
 ### Auth & Account
 
-| Command          | Description                                 |
-| ---------------- | ------------------------------------------- |
-| `minara login`   | Login via device code or email              |
-| `minara logout`  | Logout and clear local credentials          |
-| `minara account` | View your account info and wallet addresses |
-
 ```bash
-minara login                  # Interactive: device code (default) or email
-minara login --device         # Device code (opens browser to verify)
-minara login -e user@mail.com # Email verification code
+minara login                    # Interactive: device code or email
+minara login --device           # Device code flow (opens browser)
+minara login -e user@mail.com   # Email verification code
+minara logout
+minara account
 ```
 
-### Wallet & Funds
-
-| Command               | Description                                                    |
-| --------------------- | -------------------------------------------------------------- |
-| `minara balance`      | Combined USDC/USDT balance across spot and perps               |
-| `minara assets`       | Full overview: spot holdings + perps account                   |
-| `minara assets spot`  | Spot wallet: portfolio value, cost, PnL, holdings              |
-| `minara assets perps` | Perps account: equity, margin, positions                       |
-| `minara receive`      | Deposit / receive to spot, perps, or buy with credit card      |
-| `minara deposit`      | Same as `receive`                                              |
-| `minara deposit buy`  | Buy crypto with credit card via MoonPay                        |
-| `minara withdraw`     | Withdraw tokens to an external wallet                          |
+### Wallet & Balance
 
 ```bash
-minara balance                    # Quick total: Spot + Perps available balance
-minara assets                     # Full overview (spot + perps)
-minara assets spot                # Spot wallet with PnL breakdown
-minara assets perps               # Perps equity, margin, positions
-minara receive                    # Interactive: Spot / Perps / Buy with credit card
-minara receive spot               # Show spot wallet deposit addresses (EVM + Solana)
-minara receive perps              # Perps: show Arbitrum deposit address, or transfer from Spot → Perps
-minara deposit buy                # Buy crypto with credit card via MoonPay (opens browser)
+minara balance                  # Combined USDC/USDT across spot + perps
+minara assets                   # Full overview
+minara assets spot              # Portfolio, PnL, holdings
+minara assets perps             # Equity, margin, positions
+
+# Deposit / receive
+minara receive                  # Interactive menu
+minara receive spot             # Show EVM + Solana deposit addresses
+minara receive perps            # Arbitrum address or transfer from Spot
+minara receive perps --address  # Non-interactive: show address only
+minara deposit                  # Alias for receive
+
+# Withdraw
 minara withdraw -c solana -t '$SOL' -a 10 --to <address>
-minara withdraw                   # Interactive mode (accepts ticker or address)
 ```
 
 ### Spot Trading
 
-| Command           | Description                                          |
-| ----------------- | ---------------------------------------------------- |
-| `minara swap`     | Swap tokens (chain auto-detected)                    |
-| `minara send`     | Send / transfer tokens to another address             |
-| `minara transfer` | Same as `send`                                       |
-
 ```bash
-minara swap                        # Interactive: side → token → amount
-minara swap -s buy -t '$BONK' -a 100              # Buy by ticker (chain auto-detected)
-minara swap -s sell -t '$NVDAx' -a all             # Sell entire balance
-minara swap --dry-run              # Simulate without executing
+minara swap                     # Interactive
+minara swap -s buy -t '$BONK' -a 100    # Buy $100 worth
+minara swap -s sell -t '$NVDAx' -a all  # Sell entire balance
+minara swap --dry-run                  # Simulate without executing
 
-# Send tokens
-minara send -c solana -t '$SOL' -a 5 --to <address>       # Send SOL on Solana
-minara send -c base -t '$USDC' -a 200 --to <address>      # Send USDC on Base
-minara send -c ethereum -t '$ETH' -a 0.1 --to <addr>      # Send ETH on Ethereum
-minara send                        # Interactive mode
-minara transfer -c solana -t '$SOL' -a 5 --to <address>   # Same as send
+minara send -c solana -t '$SOL' -a 5 --to <address>
+minara transfer                  # Alias for send
 ```
 
-> **`send` vs `withdraw`:** `send` is an alias for `transfer` — both transfer tokens to another address. `withdraw` is a separate command that moves tokens from your Minara wallet to an external address (shows your current assets before prompting).
->
-> **Chain abstraction:** The chain is automatically detected from the token. If a token exists on multiple chains (e.g. USDC), you'll be prompted to pick one, sorted by gas cost (lowest first). Sell mode supports `all` to sell full balance, and caps amounts exceeding your balance.
->
-> **Token input:** All token fields (`-t`) accept a `$TICKER` (e.g. `$BONK`), a token name, or a contract address.
+**Token input:** `-t` accepts `$TICKER`, token name, or contract address. Chain is auto-detected.
 
 ### Perpetual Futures
 
-| Command                     | Description                                           |
-| --------------------------- | ----------------------------------------------------- |
-| `minara perps positions`    | View all open positions with PnL                      |
-| `minara perps order`        | Place an order (interactive builder)                  |
-| `minara perps close`        | Close an open position at market price                |
-| `minara perps cancel`       | Cancel open orders (selectable list)                  |
-| `minara perps leverage`     | Update leverage for a symbol                          |
-| `minara perps trades`       | View trade history (Hyperliquid fills)                |
-| `minara perps deposit`      | Deposit USDC to perps (or use `minara deposit perps`) |
-| `minara perps withdraw`     | Withdraw USDC from perps account                      |
-| `minara perps fund-records` | View fund deposit/withdrawal records                  |
-| `minara perps wallets`      | List all sub-wallets with balances and autopilot info |
-| `minara perps create-wallet`| Create a new perps sub-wallet                         |
-| `minara perps rename-wallet`| Rename a sub-wallet                                   |
-| `minara perps sweep`        | Consolidate funds from sub-wallet to default          |
-| `minara perps transfer`     | Transfer USDC between sub-wallets                     |
-| `minara perps autopilot`    | Manage AI autopilot strategies per wallet             |
-| `minara perps ask`          | AI long/short analysis with quick order               |
-
 ```bash
-minara perps positions             # Positions per wallet with equity, margin, PnL
-minara perps positions --wallet Bot-1  # Positions for a specific wallet only
-minara perps order                 # Interactive: symbol → side → size → confirm
-minara perps order --wallet Bot-1  # Place order on a specific wallet
-minara perps close                 # Close a position: pick from list → market close
-minara perps close --all           # Close all positions at once
-minara perps cancel                # Cancel an order: pick from open orders list
-minara perps leverage              # Interactive: shows max leverage per asset
-minara perps trades                # Recent fills from Hyperliquid (default 7 days)
-minara perps trades -d 30          # Last 30 days of trade history
-minara perps deposit -a 100        # Deposit 100 USDC to perps
-minara perps withdraw -a 50        # Withdraw 50 USDC from perps
-minara perps wallets               # All wallets: equity, margin, PnL, strategies
-minara perps create-wallet -n Bot-2  # Create a new sub-wallet
-minara perps sweep                 # Move funds from a sub-wallet to default
-minara perps transfer              # Transfer USDC between any two wallets
-minara perps autopilot             # Strategy dashboard: enable/disable, config, perf
-minara perps ask                   # AI analysis → optional quick order
+minara perps                    # Interactive menu
+minara perps positions          # All wallets with PnL
+minara perps positions -w Bot-1 # Specific wallet
+minara perps order              # Interactive order builder
+minara perps order -S long -s BTC -z 0.1 -T market  # Non-interactive
+minara perps close              # Close position at market
+minara perps close --all        # Close all positions
+minara perps close -s ETH       # Close by symbol
+minara perps cancel             # Select from open orders
+minara perps leverage           # Update leverage for a symbol
+minara perps trades             # Recent fills (7 days)
+minara perps trades -d 30       # Last 30 days
+minara perps deposit -a 100     # Deposit USDC
+minara perps withdraw -a 50     # Withdraw USDC
 ```
 
-> **Multi-wallet support:** All trading commands (`order`, `deposit`, `withdraw`, `close`, `cancel`, `leverage`, `trades`, `fund-records`, `ask`) accept `--wallet <name>` to target a specific sub-wallet. If omitted, you'll be prompted to pick one interactively.
->
-> **Autopilot dashboard:** Each wallet can have multiple AI strategies. The dashboard shows strategy name, status, config, and a performance comparison table across all available strategies with the active one highlighted.
->
-> **Close position:** Select an open position from the list, and it will be closed at market price with a reduce-only order in the opposite direction — no manual price or size entry needed.
->
-> **Cancel order:** Open orders are fetched from Hyperliquid and shown as a selectable list with coin, side, size, and price — no need to look up order IDs.
->
-> **Autopilot:** When autopilot is ON for a wallet, manual order placement on that wallet is blocked to prevent conflicts with AI-managed trades. Turn off autopilot first via `minara perps autopilot`.
->
-> **Ask AI → Quick Order:** After the AI analysis, you can instantly place a market order based on the recommended direction, entry price, and position size — no need to re-enter parameters.
+**Multi-wallet:** Most perps commands accept `-w, --wallet <name>` to target a sub-wallet.
+
+**Order flags:** `-S/--side` (long/buy/short/sell), `-s/--symbol`, `-T/--type` (market/limit), `-p/--price`, `-z/--size`, `-r/--reduce-only`, `-g/--grouping`, `--tpsl` (tp/sl).
+
+### AI Trading Bots
+
+```bash
+minara perps wallets            # List sub-wallets with balances & autopilot
+minara perps create-wallet -n Bot-1
+minara perps rename-wallet
+minara perps autopilot          # Strategy dashboard per wallet
+minara perps autopilot -w Bot-1 # Manage specific wallet
+minara perps sweep              # Consolidate sub-wallet to default
+minara perps transfer           # Transfer USDC between wallets
+minara perps ask                # AI long/short analysis + quick order
+```
+
+**Autopilot:** When ON, manual orders are blocked on that wallet. Turn off first to trade manually.
 
 ### Limit Orders
 
-| Command                          | Description                          |
-| -------------------------------- | ------------------------------------ |
-| `minara limit-order create`      | Create a price-triggered limit order |
-| `minara limit-order list`        | List all your limit orders           |
-| `minara limit-order cancel <id>` | Cancel a specific order by ID        |
-
 ```bash
-minara limit-order create          # Interactive: token, price, side, amount, expiry
-minara limit-order list            # Show all orders with status
-minara limit-order cancel abc123   # Cancel order by ID
+minara limit-order create       # Interactive
+minara limit-order create --chain solana --side buy --token '$BONK' \
+  --condition above --price 0.0001 --amount 100 --expiry 24
+minara limit-order list
+minara limit-order cancel <id>
 ```
 
 ### AI Chat
 
-| Command                          | Description                                       |
-| -------------------------------- | ------------------------------------------------- |
-| `minara ask [message]`           | Quick AI chat (fast mode)                         |
-| `minara research [message]`      | Deep AI research (quality mode)                   |
-| `minara chat`                    | Enter interactive REPL (Python/Node.js-style)     |
-| `minara chat [message]`          | Send a single message and exit                    |
-| `minara chat --list`             | List all your conversations                       |
-| `minara chat --history <chatId>` | View messages in a conversation                   |
-| `minara chat -c <chatId>`        | Continue an existing conversation                 |
-
 ```bash
-# Quick questions (fast mode)
-minara ask "What is the current BTC price?"
-minara ask "Is SOL a good buy right now?"
-
-# Deep research (quality mode)
-minara research "Analyze ETH outlook for next quarter"
-minara research "Compare Layer 2 rollup ecosystems"
-
-# Full chat with all options
-minara chat                                    # Enter interactive REPL mode
-minara chat "What is the current BTC price?"   # Single question, streamed answer
-minara chat --quality "Analyze ETH outlook"     # Quality mode (same as research)
-minara chat --thinking "Analyze ETH outlook"   # Enable reasoning mode
-minara chat -c <chatId>                        # Continue a specific chat in REPL
-minara chat --list                             # List past conversations
-minara chat --history <chatId>                 # Replay a specific conversation
+minara ask "What's SOL price?"  # Fast mode (quick answers)
+minara research "Analyze ETH"   # Quality mode (deep analysis)
+minara chat                     # Interactive REPL
+minara chat "Explain DeFi"      # Single message
+minara chat --quality           # Quality mode
+minara chat --thinking          # Enable reasoning mode
+minara chat -c <chatId>         # Continue conversation
+minara chat --list              # List past chats
+minara chat --history <id>      # View conversation
 ```
 
-> **`ask` vs `research` vs `chat`:** `ask` is a shortcut for `chat` in fast mode — quick questions, real-time prices, brief answers. `research` is a shortcut for `chat --quality` — deeper analysis, longer responses, more thorough reasoning. `chat` gives you the full feature set including interactive REPL, conversation history, and all mode flags.
-
-**Interactive REPL mode** — When launched without a message argument, the chat enters an interactive session:
-
-```
-Minara AI Chat session:a1b2c3d4
-──────────────────────────────────────────────────
-Type a message to chat. /help for commands, Ctrl+C to exit.
-
->>> What's the price of BTC?
-Minara: Bitcoin is currently trading at $95,432...
-
->>> /help
-
-  Commands:
-  /new        Start a new conversation
-  /continue   Continue an existing conversation
-  /list       List all historical chats
-  /id         Show current chat ID
-  exit        Quit the chat
-```
+**REPL commands:** `/new`, `/continue`, `/list`, `/id`, `exit`
 
 ### Market Discovery
 
-| Command                            | Description                              |
-| ---------------------------------- | ---------------------------------------- |
-| `minara discover trending`         | View currently trending tokens           |
-| `minara discover search <keyword>` | Search for tokens or stocks by name      |
-| `minara discover fear-greed`       | View the crypto Fear & Greed Index       |
-| `minara discover btc-metrics`      | View Bitcoin on-chain and market metrics |
-
 ```bash
-minara discover trending           # Top trending tokens right now
-minara discover search SOL         # Search for tokens matching "SOL"
-minara discover fear-greed         # Current market sentiment index
-minara discover btc-metrics        # Bitcoin hashrate, supply, dominance, etc.
+minara discover trending        # Tokens (default) or stocks
+minara discover trending -t stocks
+minara discover search SOL
+minara discover search "apple" -t stocks
+minara discover fear-greed      # Crypto Fear & Greed Index
+minara discover btc-metrics     # Bitcoin on-chain data
 ```
 
-### Premium & Subscription
-
-| Command                      | Description                                     |
-| ---------------------------- | ----------------------------------------------- |
-| `minara premium plans`       | View all subscription plans and credit packages |
-| `minara premium status`      | View your current subscription status           |
-| `minara premium subscribe`   | Subscribe or change plan (upgrade / downgrade)  |
-| `minara premium buy-credits` | Buy a one-time credit package                   |
-| `minara premium cancel`      | Cancel your current subscription                |
+### Premium
 
 ```bash
-minara premium plans              # Compare Free, Lite, Starter, Pro, Partner plans
-minara premium status             # Check your current plan and billing info
-minara premium subscribe          # Interactive: select plan → Stripe or Crypto payment
-minara premium buy-credits        # Buy additional credits (one-time purchase)
-minara premium cancel             # Cancel subscription (keeps access until period ends)
+minara premium plans            # View plans & credit packages
+minara premium status           # Current subscription
+minara premium subscribe        # Subscribe or change plan
+minara premium cancel           # Cancel at period end
 ```
 
 ### Output Format
 
-By default, all commands display data using formatted tables, colored text, and human-friendly numbers (e.g. `$1.23M`, `+3.46%`). To get raw JSON output for scripting or piping, add the `--json` flag to any command:
-
 ```bash
-minara discover trending --json    # Raw JSON array of trending tokens
-minara discover btc-metrics --json # Full BTC metrics with OHLCV data
-minara assets spot --json          # Raw JSON asset list
+minara discover trending --json
+minara assets spot --json
 ```
 
 ### Configuration
 
-| Command         | Description                                                            |
-| --------------- | ---------------------------------------------------------------------- |
-| `minara config` | View or update CLI settings (base URL, Touch ID, transaction confirm…) |
-
 ```bash
-minara config                     # Interactive settings menu
+minara config                   # Interactive settings
 ```
 
-Available settings:
+| Setting | Default | Description |
+|---------|---------|-------------|
+| Touch ID | Off | Biometric verification for fund operations (macOS) |
+| Transaction Confirmation | **On** | Mandatory confirmation before fund ops |
 
-| Setting                  | Default | Description                                          |
-| ------------------------ | ------- | ---------------------------------------------------- |
-| Base URL                 | —       | API endpoint                                         |
-| Touch ID                 | Off     | Biometric verification for fund operations (macOS)   |
-| Transaction Confirmation | **On**  | Mandatory second confirmation before fund operations |
+## Transaction Safety
 
-### Transaction Safety
-
-All fund-related operations go through a multi-layer safety flow:
-
-```
-1. First confirmation      (skippable with -y flag)
-2. Transaction confirmation (mandatory — configurable in minara config)
-3. Touch ID verification   (optional — macOS only)
-4. Execute
-```
-
-The **transaction confirmation** shows chain, token, address, side, amount, and operation details before asking for final approval:
-
-```
-⚠ Transaction confirmation
-  Chain    : solana
-  Token    : $BONK — Bonk
-  Address  : DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263
-  Side     : BUY
-  Amount   : 100 USD
-  Action   : BUY swap · 100 USD · solana
-? Are you sure you want to proceed? (y/N)
-```
-
-This step is independent of the `-y` flag and Touch ID — it serves as an extra safety net. Disable it via `minara config` if not needed.
-
-### Touch ID (macOS)
-
-Minara CLI supports macOS Touch ID to protect all fund-related operations. When enabled, transfers, withdrawals, swaps, orders, and other financial actions require fingerprint verification before execution.
-
-```bash
-minara config                     # Select "Touch ID" to enable / disable
-```
-
-**Protected operations:** `withdraw`, `send` / `transfer`, `swap`, `receive` / `deposit` (Spot→Perps transfer), `perps deposit`, `perps withdraw`, `perps order`, `perps close`, `limit-order create`
-
-> **Note:** Touch ID requires macOS with Touch ID hardware. The `--yes` flag skips the initial confirmation prompt but does **not** bypass transaction confirmation or Touch ID.
+1. **First confirmation** — skippable with `-y`
+2. **Transaction confirmation** — shows chain, token, address, amount; configurable
+3. **Touch ID** — optional, macOS only
+4. **Execute**
 
 ## Supported Chains
 
@@ -362,43 +196,12 @@ Ethereum, Base, Arbitrum, Optimism, Polygon, Avalanche, Solana, BSC, Berachain, 
 ## Development
 
 ```bash
-# Install dependencies
 npm install
-
-# Build
-npm run build
-
-# Watch mode
-npm run dev
-
-# Run locally
-node dist/index.js --help
-
-# Link globally for testing
-npm link
-minara --help
+npm run build        # Compile TypeScript
+npm run dev          # Watch mode
+npm test             # Run 270 tests
+npm run test:coverage
 ```
-
-## Testing
-
-Test suite built with [Vitest](https://vitest.dev/) — 251 tests covering unit, API, command integration, and formatter layers.
-
-```bash
-npm test                # Run all tests
-npm run test:watch      # Watch mode
-npm run test:coverage   # With v8 coverage report
-```
-
-## Security
-
-- **Transaction Confirmation** — Mandatory second confirmation before all fund operations, showing full token details and contract addresses (default: enabled, configurable)
-- **Touch ID** — Optional biometric protection for all fund operations (macOS only). A native Swift helper binary is compiled on first use and cached in `~/.minara/`
-- **Token Verification** — Token ticker, name, and full contract address are always displayed before any transaction to prevent wrong-token mistakes
-- Credentials are stored in `~/.minara/credentials.json` with `0600` file permissions
-- The `~/.minara/` directory is created with `0700` permissions
-- Tokens are never logged or printed to the console
-- OAuth login uses a temporary local server that shuts down after the callback
-- Non-TTY environments (CI/pipes) skip interactive prompts and return errors directly
 
 ## License
 
